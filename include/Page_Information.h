@@ -18,6 +18,15 @@ const char PAGE_Information[] PROGMEM = R"=====(
     <p><strong>Free Heap:</strong> <span id="heap">--</span> bytes</p>
     <p><strong>Uptime:</strong> <span id="uptime">--</span></p>
   </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <strong>Serial Output</strong>
+      <button class="btn btn-secondary" style="padding:4px 12px; font-size:0.8rem;" onclick="clearSerial()">Clear</button>
+    </div>
+    <pre id="serialOut" style="background:#0f172a; color:#22c55e; font-family:ui-monospace,monospace; font-size:0.8rem; padding:12px; border-radius:8px; height:280px; overflow-y:auto; margin:0; white-space:pre-wrap;"></pre>
+  </div>
+
   <div class="nav"><a href="/">← Dashboard</a></div>
 </div>
 <script>
@@ -28,6 +37,19 @@ fetch('/info.json').then(r=>r.json()).then(d => {
   document.getElementById('heap').textContent = d.heap || '--';
   document.getElementById('uptime').textContent = d.uptime || '--';
 }).catch(()=>{});
+
+function loadSerial() {
+  fetch('/serial').then(r => r.text()).then(txt => {
+    const el = document.getElementById('serialOut');
+    el.textContent = txt || '(no output yet)';
+    el.scrollTop = el.scrollHeight;
+  }).catch(()=>{});
+}
+function clearSerial() {
+  document.getElementById('serialOut').textContent = '';
+}
+loadSerial();
+setInterval(loadSerial, 2000);
 </script>
 </body>
 </html>

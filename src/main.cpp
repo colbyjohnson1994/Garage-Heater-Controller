@@ -4,6 +4,7 @@
   Updated with modern UI, outdoor weather (Open-Meteo), and scheduling
 */
 
+#include "secrets.h"
 #include <math.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
@@ -13,6 +14,7 @@
 #include <EEPROM.h>
 #include <time.h>
 #include <ArduinoOTA.h>
+#include <WiFiServer.h>
 #include "helpers.h"
 #include "global.h"
 
@@ -27,8 +29,9 @@
 #define ACCESS_POINT_NAME "Garage Heater"
 #define ACCESS_POINT_PASSWORD "12345678"
 #define OTA_PASSWORD "heaterota"
+
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.5.0"
+#define FIRMWARE_VERSION "1.6.0"
 #endif
 
 unsigned int Rs = 150000;
@@ -43,12 +46,38 @@ void send_weather_json();
 void fetchWeather();
 double Thermister(int val);
 
+WiFiServer serialServer(23);
+WiFiClient serialClient;
+
+// Serial log buffer for web terminal
+#define SERIAL_LOG_SIZE 4096
+char serialLog[SERIAL_LOG_SIZE];
+size_t serialLogPos = 0;
+
+void serialLogPrint(const String& s)
+{
+  for (size_t i = 0; i < s.length(); i++)
+  {
+    serialLog[serialLogPos] = s[i];
+    serialLogPos = (serialLogPos + 1) % SERIAL_LOG_SIZE;
+  }
+  if (serialLogPos == 0 || s.endsWith("\n"))
+    serialLog[serialLogPos] = '\0';
+}
+
+void serialLogPrintln(const String& s)
+{
+  serialLogPrint(s);
+  serialLogPrint("\n");
+}
+
 void setup()
 {
   EEPROM.begin(512);
   Serial.begin(115200);
   delay(500);
   Serial.println("Starting ESP8266 Garage Heater");
+  serialLogPrintln("Starting ESP8266 Garage Heater");
 
   if (!ReadConfig())
   {
@@ -84,8 +113,29 @@ void setup()
     delay(1000);
   }
 
-  WiFi.mode(WIFI_AP_STA);
+  // Force hardcoded WiFi so OTA works even if EEPROM SSID is empty
+  if (String(WIFI_SSID) != "YOUR_SSID_HERE")
+  {
+    config.ssid = WIFI_SSID;
+    config.password = WIFI_PASSWORD;
+    Serial.println("Using hardcoded WiFi: " + config.ssid);
+  }
+
+  // WiFi: AP-only if no SSID saved (more reliable), otherwise AP+STA
+  if (config.ssid == "")
+  {
+    WiFi.mode(WIFI_AP);
+    Serial.println("No SSID saved — AP mode only");
+  }
+  else
+  {
+    WiFi.mode(WIFI_AP_STA);
+  }
+  WiFi.softAPConfig(IPAddress(192,168,4,1), IPAddress(192,168,4,1), IPAddress(255,255,255,0));
   WiFi.softAP(ACCESS_POINT_NAME, ACCESS_POINT_PASSWORD);
+  delay(100);
+  Serial.println("AP IP: " + WiFi.softAPIP().toString());
+  Serial.println("SSID stored: '" + config.ssid + "'");
   ConfigureWifi();
 
   // ArduinoOTA (local network only)
@@ -118,6 +168,7 @@ void setup()
   server.on("/login", handleLogin);
   server.on("/logout", handleLogout);
   server.on("/changepass", handleChangePassword);
+  server.on("/ping", []() { server.send(200, "text/plain", "pong"); });
   server.on("/style.css", []() { server.send(200, "text/css", PAGE_Style_css); });
   server.on("/script.js", []() { server.send(200, "text/javascript", PAGE_Script_js); });
 
@@ -131,6 +182,27 @@ void setup()
   server.on("/scan", []() { if (requireAuth()) send_scan_json(); });
   server.on("/info.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Information); });
   server.on("/info.json", []() { if (requireAuth()) send_info_json(); });
+  server.on("/serial", []() {
+    if (!requireAuth()) return;
+    String out;
+    // Return the circular buffer as a linear string (simple approach)
+    if (serialLogPos > 0 && serialLog[serialLogPos] == '\0')
+    {
+      out = String(serialLog);
+    }
+    else
+    {
+      // Buffer has wrapped; reconstruct
+      out.reserve(SERIAL_LOG_SIZE);
+      for (size_t i = 0; i < SERIAL_LOG_SIZE; i++)
+      {
+        size_t idx = (serialLogPos + i) % SERIAL_LOG_SIZE;
+        if (serialLog[idx] == '\0') continue;
+        out += serialLog[idx];
+      }
+    }
+    server.send(200, "text/plain", out);
+  });
   server.on("/admin/values", []() { if (requireAuth()) send_network_configuration_values_html(); });
   server.on("/admin/connectionstate", []() { if (requireAuth()) send_connection_state_values_html(); });
   server.on("/admin/infovalues", []() { if (requireAuth()) send_information_values_html(); });
@@ -146,6 +218,10 @@ void setup()
 
   server.begin();
   Serial.println("HTTP server started");
+  serialLogPrintln("HTTP server started");
+
+  serialServer.begin();
+  Serial.println("Remote serial on port 23");
 
   time_read = millis();
   time_logic = millis();
@@ -166,6 +242,7 @@ void loop()
   if (!firstConnect && WiFi.status() == WL_CONNECTED)
   {
     Serial.println("Local IP: " + WiFi.localIP().toString());
+    serialLogPrintln("Local IP: " + WiFi.localIP().toString());
     manual_weather_trigger = true;
     firstConnect = true;
   }
@@ -189,6 +266,22 @@ void loop()
 
   server.handleClient();
   ArduinoOTA.handle();
+
+  // Remote serial bridge
+  if (serialServer.hasClient())
+  {
+    if (serialClient && serialClient.connected())
+      serialClient.stop();
+    serialClient = serialServer.available();
+    serialClient.println("Garage Heater remote serial");
+  }
+  if (serialClient && serialClient.connected() && serialClient.available())
+  {
+    String cmd = serialClient.readStringUntil('\n');
+    cmd.trim();
+    Serial.println("Remote: " + cmd);
+    serialClient.println("Echo: " + cmd);
+  }
 
   // GPIO0 long press reset
   if (digitalRead(0) == LOW)
@@ -312,6 +405,7 @@ void fetchWeather()
                "&current=temperature_2m,relative_humidity_2m,weather_code&temperature_unit=fahrenheit";
 
   Serial.println("Fetching weather: " + url);
+  serialLogPrintln("Fetching weather: " + url);
   http.begin(client, url);
   int httpCode = http.GET();
 
