@@ -28,11 +28,20 @@
 #define ACCESS_POINT_PASSWORD "12345678"
 #define OTA_PASSWORD "heaterota"
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.2.0"
+#define FIRMWARE_VERSION "1.5.0"
 #endif
 
 unsigned int Rs = 150000;
 double Vcc = 3.3;
+
+// Forward declarations (PlatformIO does not auto-prototype)
+void send_status_json();
+void toggleHeaterState();
+void set_setpoint();
+void send_info_json();
+void send_weather_json();
+void fetchWeather();
+double Thermister(int val);
 
 void setup()
 {
