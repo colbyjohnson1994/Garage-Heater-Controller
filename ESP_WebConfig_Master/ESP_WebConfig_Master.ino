@@ -12,6 +12,7 @@
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 #include <time.h>
+#include <ArduinoOTA.h>
 #include "helpers.h"
 #include "global.h"
 
@@ -24,7 +25,8 @@
 #include "Page_Script.js.h"
 
 #define ACCESS_POINT_NAME "Garage Heater"
-#define ACCESS_POINT_PASSWORD "12345678"
+#define ACCESS_POINT_PASSWORD "674Airway"
+#define OTA_PASSWORD "674Airway"
 
 unsigned int Rs = 150000;
 double Vcc = 3.3;
@@ -73,6 +75,29 @@ void setup()
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAP(ACCESS_POINT_NAME, ACCESS_POINT_PASSWORD);
   ConfigureWifi();
+
+  // ArduinoOTA (local network only)
+  ArduinoOTA.setHostname("GarageHeater");
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+  ArduinoOTA.onStart([]() {
+    Serial.println("OTA Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nOTA End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("OTA Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("ArduinoOTA ready");
 
   // NTP
   configTime(config.timezone * 3600, config.daylight ? 3600 : 0, config.ntpServerName.c_str(), "time.nist.gov");
@@ -150,6 +175,7 @@ void loop()
   }
 
   server.handleClient();
+  ArduinoOTA.handle();
 
   // GPIO0 long press reset
   if (digitalRead(0) == LOW)
