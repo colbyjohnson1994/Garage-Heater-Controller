@@ -27,7 +27,9 @@
 #define ACCESS_POINT_NAME "Garage Heater"
 #define ACCESS_POINT_PASSWORD "12345678"
 #define OTA_PASSWORD "heaterota"
-#define FIRMWARE_VERSION "1.4.0"
+#ifndef FIRMWARE_VERSION
+#define FIRMWARE_VERSION "1.2.0"
+#endif
 
 unsigned int Rs = 150000;
 double Vcc = 3.3;
