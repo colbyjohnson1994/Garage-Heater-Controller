@@ -1,91 +1,73 @@
-//
-//  HTML PAGE
-//
+const char PAGE_Index[] PROGMEM = R"=====(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garage Heater</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="container">
+  <h1>🔥 Garage Heater</h1>
+  <div style="text-align:center; font-size:1.4rem; color:#94a3b8; margin-bottom:16px;" id="localTime">--:--</div>
 
-const char PAGE_ControlMainPage[] PROGMEM = R"=====(
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+  <div class="card">
+    <div style="text-align:center; color:#94a3b8; font-size:0.9rem;">INDOOR TEMPERATURE</div>
+    <div class="temp-big"><span id="temp">--</span><span class="temp-unit">°F</span></div>
+    <div style="text-align:center;">
+      <span id="relayStatus" class="status-badge status-off">IDLE</span>
+    </div>
+  </div>
 
-<center><strong>Heater Control</strong></center>
-<hr>
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div style="color:#94a3b8; font-size:0.9rem;">OUTDOOR WEATHER</div>
+        <div style="font-size:2rem; font-weight:600;" id="outdoorTemp">--°F</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+          <span id="weatherIcon" style="font-size:1.8rem;">❓</span>
+          <span id="outdoorCond" style="color:#94a3b8; font-size:1.05rem;">--</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:1.2rem;" id="outdoorHum">--%</div>
+        <div style="color:#94a3b8; font-size:0.85rem;">Humidity</div>
+      </div>
+    </div>
+  </div>
 
-<p style="text-align:center; font-size:3vw; font-weight: bold;">
-Current Temperature
-<br>
-<font size="8vw">
-<label id="temp"></label> F
-</font>
-</p>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <div>
+        <div style="color:#94a3b8; font-size:0.9rem;">HEATER ENABLED</div>
+        <label class="switch">
+          <input type="checkbox" id="enabled" onchange="toggleHeater()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div>
+        <label>Setpoint (°F)</label>
+        <input type="number" id="sp" min="35" max="80" value="50">
+      </div>
+      <div>
+        <label>Hysteresis (°F)</label>
+        <input type="number" id="hist" min="1" max="10" value="4">
+      </div>
+      <button class="btn" onclick="saveSetpoint()">Save</button>
+    </div>
+  </div>
 
-<p style="text-align:center; font-size:3vw; font-weight: bold;">
-Setpoint
-<br>
-<font size="8vw">
-<label id="sp"></label> F
-</font>
-</p>
-
-<p style="text-align:center; font-size:3vw; font-weight: bold;">
-Heater Output
-<br>
-<font size="8vw">
-<label id="status"></label>
-</font>
-</p>
-
-<p />
-
-<center>
-<font size=":3vw" weight="bold">
-Heater Enabled
-</font>
-<br>
-<label class="switch">
-  <input type="checkbox" id="state" onchange="toggleState()">
-  <span class="slider"></span>
-</label><br>
-<p />
-<a href="setpoints.html" style="width:250px" class="btn btn--m btn--blue" >Setpoints</a><br>
-<a href="config.html" style="width:250px" class="btn btn--m btn--blue" >Network Configuration</a><br>
-<a href="info.html"   style="width:250px"  class="btn btn--m btn--blue" >Network Information</a><br>
-</center>
-
-
-<script>
-window.onload = function ()
-{
-  load("style.css","css", function() 
-  {
-    load("microajax.js","js", function() 
-    {
-        refreshVar();
-    });
-  });
-}
-function load(e,t,n){if("js"==t){var a=document.createElement("script");a.src=e,a.type="text/javascript",a.async=!1,a.onload=function(){n()},document.getElementsByTagName("head")[0].appendChild(a)}else if("css"==t){var a=document.createElement("link");a.href=e,a.rel="stylesheet",a.type="text/css",a.async=!1,a.onload=function(){n()},document.getElementsByTagName("head")[0].appendChild(a)}}
-
-function refreshVar()
-{
-  setValues("/sendValues");
-  setTimeout('refreshVar()', 1000);
-}
-
-function toggleState()
-{
-  setValues("/toggle");
-}
-
-</script>
-
+  <div class="nav">
+    <a href="/schedule.html">Schedule</a>
+    <a href="/config.html">Network & Location</a>
+    <a href="/changepass">Password</a>
+    <a href="/info.html">Info</a>
+    <a href="/logout">Logout</a>
+  </div>
+</div>
+<script src="/script.js"></script>
+<script>initDashboard();</script>
+</body>
+</html>
 )=====";
-
-
-void send_status_values_html()
-{
-  String values ="";
-  values += "temp|" +   (String) (int8_t)Temp_Avg +  "|label\n";
-  values += "sp|" +  (String)  config.HeatSP +  "|label\n";
-  values += "status|" +  (String)  (config.RelayState ? "On" : "Off") +  "|label\n";
-  values += "state|" + (String) (config.HeatStatus ? "checked" : "") + "|chk\n";
-  server.send ( 200, "text/plain", values);
-  Serial.println(__FUNCTION__); 
-}
