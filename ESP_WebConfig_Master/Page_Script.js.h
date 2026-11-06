@@ -29,6 +29,12 @@ function loadStatus() {
     .catch(e => console.error(e));
 }
 
+function refreshWeather() {
+  fetch('/weather/refresh').then(() => {
+    setTimeout(loadStatus, 1500);
+  });
+}
+
 function toggleHeater() {
   fetch('/toggle').then(() => loadStatus());
 }

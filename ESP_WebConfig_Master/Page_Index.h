@@ -33,6 +33,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
       <div style="text-align:right;">
         <div style="font-size:1.2rem;" id="outdoorHum">--%</div>
         <div style="color:#94a3b8; font-size:0.85rem;">Humidity</div>
+        <button class="btn btn-secondary" style="margin-top:10px; padding:6px 12px; font-size:0.85rem;" onclick="refreshWeather()">Refresh</button>
       </div>
     </div>
   </div>

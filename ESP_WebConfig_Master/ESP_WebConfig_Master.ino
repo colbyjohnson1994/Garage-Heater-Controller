@@ -25,8 +25,9 @@
 #include "Page_Script.js.h"
 
 #define ACCESS_POINT_NAME "Garage Heater"
-#define ACCESS_POINT_PASSWORD "674Airway"
-#define OTA_PASSWORD "674Airway"
+#define ACCESS_POINT_PASSWORD "12345678"
+#define OTA_PASSWORD "heaterota"
+#define FIRMWARE_VERSION "1.4.0"
 
 unsigned int Rs = 150000;
 double Vcc = 3.3;
@@ -124,6 +125,7 @@ void setup()
   server.on("/admin/infovalues", []() { if (requireAuth()) send_information_values_html(); });
   server.on("/admin/generalvalues", []() { if (requireAuth()) send_general_configuration_values_html(); });
   server.on("/weather", []() { if (requireAuth()) send_weather_json(); });
+  server.on("/weather/refresh", []() { if (requireAuth()) { manual_weather_trigger = true; server.send(200, "application/json", "{\"ok\":true}"); } });
 
   server.onNotFound([]() { server.send(404, "text/html", "Page not Found"); });
   // Must collect Cookie header or auth will always fail
@@ -331,11 +333,19 @@ void fetchWeather()
 
 void send_info_json()
 {
+  unsigned long sec = millis() / 1000;
+  unsigned long days = sec / 86400;
+  unsigned long hours = (sec % 86400) / 3600;
+  unsigned long mins = (sec % 3600) / 60;
+  char uptimeBuf[32];
+  snprintf(uptimeBuf, sizeof(uptimeBuf), "%lud %02luh %02lum", days, hours, mins);
+
   String json = "{";
+  json += "\"version\":\"" + String(FIRMWARE_VERSION) + "\",";
   json += "\"mac\":\"" + GetMacAddress() + "\",";
   json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
   json += "\"heap\":" + String(ESP.getFreeHeap()) + ",";
-  json += "\"uptime\":" + String(millis()/1000);
+  json += "\"uptime\":\"" + String(uptimeBuf) + "\"";
   json += "}";
   server.send(200, "application/json", json);
 }
