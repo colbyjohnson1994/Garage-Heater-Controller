@@ -8,6 +8,14 @@ const char PAGE_Index[] PROGMEM = R"=====(
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<div class="topnav">
+  <a href="/">Dashboard</a>
+  <a href="/schedule.html">Schedule</a>
+  <a href="/runtime.html">Runtime</a>
+  <a href="/config.html">Network</a>
+  <a href="/mqtt.html">MQTT</a>
+  <a href="/info.html">Info</a>
+</div>
 <div class="container">
   <h1>🔥 Garage Heater</h1>
   <div style="text-align:center; font-size:1.4rem; color:#94a3b8; margin-bottom:16px;" id="localTime">--:--</div>
@@ -15,6 +23,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
   <div class="card">
     <div style="text-align:center; color:#94a3b8; font-size:0.9rem;">INDOOR TEMPERATURE</div>
     <div class="temp-big"><span id="temp">--</span><span class="temp-unit">°F</span></div>
+    <div class="rate" id="rate">-- °/min</div>
     <div style="text-align:center;">
       <span id="relayStatus" class="status-badge status-off">IDLE</span>
     </div>
@@ -70,15 +79,6 @@ const char PAGE_Index[] PROGMEM = R"=====(
       </div>
       <button class="btn" onclick="saveSetpoint()">Save</button>
     </div>
-  </div>
-
-  <div class="nav">
-    <a href="/schedule.html">Schedule</a>
-    <a href="/runtime.html">Runtime</a>
-    <a href="/config.html">Network & Location</a>
-    <a href="/changepass">Password</a>
-    <a href="/info.html">Info</a>
-    <a href="/logout">Logout</a>
   </div>
 </div>
 <script src="/script.js"></script>
