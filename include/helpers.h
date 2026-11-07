@@ -42,7 +42,7 @@ String ReadStringFromEEPROM(int beginaddress)
   while (1)
   {
     rChar = EEPROM.read(beginaddress + counter);
-    if (rChar == 0) break;
+    if (rChar == 0 || rChar == (char)0xFF) break;
     if (counter > 31) break;
     counter++;
     retString.concat(rChar);
