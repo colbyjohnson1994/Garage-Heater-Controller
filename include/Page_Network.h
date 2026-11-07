@@ -8,6 +8,14 @@ const char PAGE_Network[] PROGMEM = R"=====(
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<div class="topnav">
+  <a href="/">Dashboard</a>
+  <a href="/schedule.html">Schedule</a>
+  <a href="/runtime.html">Runtime</a>
+  <a href="/config.html">Network</a>
+  <a href="/mqtt.html">MQTT</a>
+  <a href="/info.html">Info</a>
+</div>
 <div class="container">
   <h1>Network & Location</h1>
   <div class="card">
@@ -46,7 +54,6 @@ const char PAGE_Network[] PROGMEM = R"=====(
   <div class="card">
     <strong>Connection:</strong> <span id="connState">Checking...</span>
   </div>
-  <div class="nav"><a href="/">← Dashboard</a></div>
 </div>
 <script src="/script.js"></script>
 <script>
