@@ -106,6 +106,7 @@ void setup()
     config.HeatHist = 4;
     config.HeatStatus = false;
     config.AdminEnabled = false;
+    config.zipCode = "57701";
     config.latitude = 44.0805; // Rapid City default
     config.longitude = -103.2310;
     config.scheduleEnabled = false;
@@ -184,6 +185,7 @@ void setup()
   server.on("/schedule.json", []() { if (requireAuth()) send_schedule_json(); });
   server.on("/config.html", []() { if (requireAuth()) send_network_configuration_html(); });
   server.on("/scan", []() { if (requireAuth()) send_scan_json(); });
+  server.on("/geocode", []() { if (requireAuth()) send_geocode_json(); });
   server.on("/info.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Information); });
   server.on("/info.json", []() { if (requireAuth()) send_info_json(); });
   server.on("/history.json", []() { if (requireAuth()) send_history_json(); });
@@ -605,6 +607,7 @@ void WriteConfig()
   EEPROMWritelong(428, config.loginHash);
   WriteStringToEEPROM(432, config.loginUser);
   WriteStringToEEPROM(320, config.DeviceName);
+  WriteStringToEEPROM(460, config.zipCode);
 
   EEPROM.commit();
 }
@@ -654,6 +657,7 @@ boolean ReadConfig()
     config.loginHash = EEPROMReadlong(428);
     config.loginUser = ReadStringFromEEPROM(432);
     if (config.loginUser.length() == 0) config.loginUser = "admin";
+    config.zipCode = ReadStringFromEEPROM(460);
     // Force known-good default if hash looks unset
     if (config.loginHash == 0 || config.loginHash == 0xFFFFFFFF)
     {
