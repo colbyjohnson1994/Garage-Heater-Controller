@@ -14,10 +14,29 @@ body {
   background: var(--bg);
   color: var(--text);
   margin: 0;
-  padding: 16px;
+  padding: 0;
   line-height: 1.5;
 }
-.container { max-width: 720px; margin: 0 auto; }
+.topnav {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  padding: 10px 16px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  border-bottom: 1px solid #334155;
+  z-index: 100;
+}
+.topnav a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+.topnav a:hover { text-decoration: underline; }
+.container { max-width: 720px; margin: 0 auto; padding: 16px; }
 h1 { font-size: 1.8rem; margin: 0 0 20px; text-align: center; }
 .card {
   background: var(--card);
@@ -98,4 +117,7 @@ label { display: block; margin: 12px 0 4px; color: var(--muted); font-size: 0.9r
 .nav { text-align: center; margin-top: 24px; }
 .nav a { color: var(--accent); margin: 0 12px; text-decoration: none; }
 .weather-icon { font-size: 2.5rem; }
+.rate { font-size: 0.9rem; color: var(--muted); text-align: center; margin-top: 4px; }
+.rate.up { color: #ef4444; }
+.rate.down { color: #3b82f6; }
 )=====";
