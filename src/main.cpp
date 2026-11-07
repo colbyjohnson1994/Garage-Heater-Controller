@@ -601,7 +601,8 @@ void fetchWeather()
   String url = "http://api.open-meteo.com/v1/forecast?latitude=" + String(config.latitude, 4) +
                "&longitude=" + String(config.longitude, 4) +
                "&current=temperature_2m,relative_humidity_2m,weather_code" +
-               "&hourly=temperature_2m,weather_code&forecast_hours=12&temperature_unit=fahrenheit";
+               "&hourly=temperature_2m,weather_code&forecast_hours=12&temperature_unit=fahrenheit" +
+               "&timezone=auto";
 
   Serial.println("Fetching weather: " + url);
   serialLogPrintln("Fetching weather: " + url);
@@ -625,7 +626,7 @@ void fetchWeather()
       weatherLastUpdate = String(ctime(&now));
       weatherLastUpdate.trim();
 
-      // Hourly forecast
+      // Hourly forecast (times are now in local timezone via timezone=auto)
       JsonArray hourly = doc["hourly"]["temperature_2m"];
       JsonArray times = doc["hourly"]["time"];
       JsonArray codes = doc["hourly"]["weather_code"];
