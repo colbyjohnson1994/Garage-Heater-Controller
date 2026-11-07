@@ -64,6 +64,7 @@ struct strConfig {
 	bool AdminEnabled;
 	// Location
 	String zipCode;
+	String locationName;
 	float latitude;
 	float longitude;
 	bool scheduleEnabled;
