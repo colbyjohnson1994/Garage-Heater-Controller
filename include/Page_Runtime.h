@@ -8,6 +8,14 @@ const char PAGE_Runtime[] PROGMEM = R"=====(
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<div class="topnav">
+  <a href="/">Dashboard</a>
+  <a href="/schedule.html">Schedule</a>
+  <a href="/runtime.html">Runtime</a>
+  <a href="/config.html">Network</a>
+  <a href="/mqtt.html">MQTT</a>
+  <a href="/info.html">Info</a>
+</div>
 <div class="container">
   <h1>Runtime Usage</h1>
 
@@ -30,8 +38,6 @@ const char PAGE_Runtime[] PROGMEM = R"=====(
     <div style="color:#94a3b8; font-size:0.9rem; margin-bottom:8px;">TODAY BY HOUR</div>
     <canvas id="runtimeChart" width="640" height="160" style="width:100%; height:160px; background:#0f172a; border-radius:8px;"></canvas>
   </div>
-
-  <div class="nav"><a href="/">← Dashboard</a></div>
 </div>
 <script>
 function loadRuntime() {
