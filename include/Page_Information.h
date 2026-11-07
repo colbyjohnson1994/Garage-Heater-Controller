@@ -20,6 +20,15 @@ const char PAGE_Information[] PROGMEM = R"=====(
   </div>
 
   <div class="card">
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/backup.json" class="btn" download="config.json">Download Config</a>
+      <button class="btn btn-secondary" onclick="document.getElementById('restoreFile').click()">Restore Config</button>
+      <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreConfig(this)">
+      <button class="btn btn-secondary" onclick="rebootDevice()">Reboot</button>
+    </div>
+  </div>
+
+  <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
       <strong>Serial Output</strong>
       <button class="btn btn-secondary" style="padding:4px 12px; font-size:0.8rem;" onclick="clearSerial()">Clear</button>
@@ -47,6 +56,22 @@ function loadSerial() {
 }
 function clearSerial() {
   document.getElementById('serialOut').textContent = '';
+}
+function restoreConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    fetch('/restore', { method: 'POST', body: e.target.result, headers: {'Content-Type':'application/json'} })
+      .then(r => r.json())
+      .then(d => { alert(d.ok ? 'Restored. Rebooting...' : 'Restore failed'); if (d.ok) setTimeout(()=>location.href='/', 3000); })
+      .catch(() => alert('Restore failed'));
+  };
+  reader.readAsText(file);
+}
+function rebootDevice() {
+  if (!confirm('Reboot the controller?')) return;
+  fetch('/reboot').then(() => { alert('Rebooting...'); setTimeout(()=>location.href='/', 5000); });
 }
 loadSerial();
 setInterval(loadSerial, 2000);
