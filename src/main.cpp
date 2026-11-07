@@ -14,7 +14,6 @@
 #include <EEPROM.h>
 #include <time.h>
 #include <ArduinoOTA.h>
-#include <WiFiServer.h>
 #include <PubSubClient.h>
 #include "helpers.h"
 #include "global.h"
@@ -49,8 +48,6 @@ void handle_reboot();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 void mqttPublish();
 
-WiFiServer serialServer(23);
-WiFiClient serialClient;
 WiFiClient mqttWifiClient;
 PubSubClient mqtt(mqttWifiClient);
 
@@ -140,6 +137,12 @@ void setup()
     delay(1000);
   }
 
+  // Validate runtime (garbage EEPROM reads as huge values)
+  if (config.runtimeTotal > 315360000) // > 10 years of seconds
+  {
+    config.runtimeTotal = 0;
+    Serial.println("Runtime total reset (was uninitialized)");
+  }
   runtimeTotal = config.runtimeTotal;
 
   // Force hardcoded WiFi so OTA works even if EEPROM SSID is empty
@@ -234,6 +237,11 @@ void setup()
       if (i) j += ",";
       j += String(forecastHour[i]);
     }
+    j += "],\"codes\":[";
+    for (int i = 0; i < FORECAST_HOURS; i++) {
+      if (i) j += ",";
+      j += String(forecastCode[i]);
+    }
     j += "]}";
     server.send(200, "application/json", j);
   }});
@@ -274,9 +282,6 @@ void setup()
   server.begin();
   Serial.println("HTTP server started");
   serialLogPrintln("HTTP server started");
-
-  serialServer.begin();
-  Serial.println("Remote serial on port 23");
 
   time_read = millis();
   time_logic = millis();
@@ -346,22 +351,6 @@ void loop()
       time_mqtt = millis();
       mqttPublish();
     }
-  }
-
-  // Remote serial bridge
-  if (serialServer.hasClient())
-  {
-    if (serialClient && serialClient.connected())
-      serialClient.stop();
-    serialClient = serialServer.available();
-    serialClient.println("Garage Heater remote serial");
-  }
-  if (serialClient && serialClient.connected() && serialClient.available())
-  {
-    String cmd = serialClient.readStringUntil('\n');
-    cmd.trim();
-    Serial.println("Remote: " + cmd);
-    serialClient.println("Echo: " + cmd);
   }
 
   // GPIO0 long press reset
@@ -543,7 +532,7 @@ void fetchWeather()
   String url = "http://api.open-meteo.com/v1/forecast?latitude=" + String(config.latitude, 4) +
                "&longitude=" + String(config.longitude, 4) +
                "&current=temperature_2m,relative_humidity_2m,weather_code" +
-               "&hourly=temperature_2m&forecast_hours=12&temperature_unit=fahrenheit";
+               "&hourly=temperature_2m,weather_code&forecast_hours=12&temperature_unit=fahrenheit";
 
   Serial.println("Fetching weather: " + url);
   serialLogPrintln("Fetching weather: " + url);
@@ -553,7 +542,7 @@ void fetchWeather()
   if (httpCode == 200)
   {
     String payload = http.getString();
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(3072);
     DeserializationError error = deserializeJson(doc, payload);
     if (!error)
     {
@@ -570,11 +559,13 @@ void fetchWeather()
       // Hourly forecast
       JsonArray hourly = doc["hourly"]["temperature_2m"];
       JsonArray times = doc["hourly"]["time"];
+      JsonArray codes = doc["hourly"]["weather_code"];
       if (hourly.size() >= FORECAST_HOURS)
       {
         for (int i = 0; i < FORECAST_HOURS; i++)
         {
           forecastTemp[i] = hourly[i] | 0.0;
+          forecastCode[i] = codes[i] | 0;
           String t = times[i] | "";
           int h = t.length() >= 13 ? t.substring(11, 13).toInt() : i;
           forecastHour[i] = h;
