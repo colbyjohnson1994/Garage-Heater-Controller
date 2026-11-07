@@ -25,6 +25,14 @@ function loadStatus() {
       if (humEl) humEl.textContent = (data.humidity || '--') + '%';
       const timeEl = document.getElementById('localTime');
       if (timeEl && data.time) timeEl.textContent = data.time;
+      const locEl = document.getElementById('locationInfo');
+      if (locEl) {
+        let parts = [];
+        if (data.location) parts.push(data.location);
+        if (data.zip) parts.push(data.zip);
+        if (data.lat && data.lon) parts.push(data.lat.toFixed(2) + ', ' + data.lon.toFixed(2));
+        locEl.textContent = parts.join(' · ') || '--';
+      }
     })
     .catch(e => console.error(e));
 }
