@@ -15,6 +15,7 @@
 #include <time.h>
 #include <ArduinoOTA.h>
 #include <WiFiServer.h>
+#include <PubSubClient.h>
 #include "helpers.h"
 #include "global.h"
 
@@ -23,6 +24,7 @@
 #include "Page_Network.h"
 #include "Page_Information.h"
 #include "Page_Login.h"
+#include "Page_Runtime.h"
 #include "Page_Style.css.h"
 #include "Page_Script.js.h"
 
@@ -40,9 +42,17 @@ void send_weather_json();
 void fetchWeather();
 double Thermister(int val);
 void send_history_json();
+void send_runtime_json();
+void send_backup_json();
+void handle_restore();
+void handle_reboot();
+void mqttCallback(char* topic, byte* payload, unsigned int length);
+void mqttPublish();
 
 WiFiServer serialServer(23);
 WiFiClient serialClient;
+WiFiClient mqttWifiClient;
+PubSubClient mqtt(mqttWifiClient);
 
 // Serial log buffer for web terminal
 #define SERIAL_LOG_SIZE 4096
@@ -57,6 +67,10 @@ float historyOutdoor[HISTORY_SIZE];
 uint8_t historyCount = 0;
 uint8_t historyHead = 0;
 uint32_t time_history = 0;
+
+// Runtime hourly (seconds on per hour today)
+uint16_t runtimeHourly[24] = {0};
+uint32_t time_mqtt = 0;
 
 void serialLogPrint(const String& s)
 {
@@ -114,10 +128,19 @@ void setup()
     for (int d = 0; d < 7; d++) config.scheduleHours[d] = 0x00FFFFFF; // all hours on by default
     config.loginUser = "admin";
     config.loginHash = simpleHash("heater");
+    config.mqttBroker = "";
+    config.mqttPort = 1883;
+    config.mqttUser = "";
+    config.mqttPass = "";
+    config.mqttTopic = "garage/heater";
+    config.mqttEnabled = false;
+    config.runtimeTotal = 0;
     WriteConfig();
     Serial.println("Default config applied");
     delay(1000);
   }
+
+  runtimeTotal = config.runtimeTotal;
 
   // Force hardcoded WiFi so OTA works even if EEPROM SSID is empty
   if (String(WIFI_SSID) != "YOUR_SSID_HERE")
@@ -170,6 +193,14 @@ void setup()
   // NTP
   configTime(config.timezone * 3600, config.daylight ? 3600 : 0, config.ntpServerName.c_str(), "time.nist.gov");
 
+  // MQTT
+  if (config.mqttEnabled && config.mqttBroker.length() > 0)
+  {
+    mqtt.setServer(config.mqttBroker.c_str(), config.mqttPort);
+    mqtt.setCallback(mqttCallback);
+    Serial.println("MQTT configured: " + config.mqttBroker);
+  }
+
   // Routes
   server.on("/login", handleLogin);
   server.on("/logout", handleLogout);
@@ -190,17 +221,34 @@ void setup()
   server.on("/info.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Information); });
   server.on("/info.json", []() { if (requireAuth()) send_info_json(); });
   server.on("/history.json", []() { if (requireAuth()) send_history_json(); });
+  server.on("/runtime.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Runtime); });
+  server.on("/runtime.json", []() { if (requireAuth()) send_runtime_json(); });
+  server.on("/forecast.json", []() { if (requireAuth()) {
+    String j = "{\"temps\":[";
+    for (int i = 0; i < FORECAST_HOURS; i++) {
+      if (i) j += ",";
+      j += forecastValid ? String(forecastTemp[i], 1) : "null";
+    }
+    j += "],\"hours\":[";
+    for (int i = 0; i < FORECAST_HOURS; i++) {
+      if (i) j += ",";
+      j += String(forecastHour[i]);
+    }
+    j += "]}";
+    server.send(200, "application/json", j);
+  }});
+  server.on("/backup.json", []() { if (requireAuth()) send_backup_json(); });
+  server.on("/restore", HTTP_POST, []() { if (requireAuth()) handle_restore(); });
+  server.on("/reboot", []() { if (requireAuth()) handle_reboot(); });
   server.on("/serial", []() {
     if (!requireAuth()) return;
     String out;
-    // Return the circular buffer as a linear string (simple approach)
     if (serialLogPos > 0 && serialLog[serialLogPos] == '\0')
     {
       out = String(serialLog);
     }
     else
     {
-      // Buffer has wrapped; reconstruct
       out.reserve(SERIAL_LOG_SIZE);
       for (size_t i = 0; i < SERIAL_LOG_SIZE; i++)
       {
@@ -219,7 +267,6 @@ void setup()
   server.on("/weather/refresh", []() { if (requireAuth()) { manual_weather_trigger = true; server.send(200, "application/json", "{\"ok\":true}"); } });
 
   server.onNotFound([]() { server.send(404, "text/html", "Page not Found"); });
-  // Must collect Cookie header or auth will always fail
   const char* headerKeys[] = {"Cookie"};
   size_t headerKeysSize = sizeof(headerKeys) / sizeof(char*);
   server.collectHeaders(headerKeys, headerKeysSize);
@@ -235,6 +282,7 @@ void setup()
   time_logic = millis();
   time_weather = millis();
   time_history = millis();
+  time_mqtt = millis();
 
   digitalWrite(16, LOW);
   pinMode(16, INPUT);
@@ -276,6 +324,30 @@ void loop()
   server.handleClient();
   ArduinoOTA.handle();
 
+  // MQTT
+  if (config.mqttEnabled && config.mqttBroker.length() > 0)
+  {
+    if (!mqtt.connected() && WiFi.status() == WL_CONNECTED)
+    {
+      String clientId = "garage-" + String(ESP.getChipId(), HEX);
+      if (config.mqttUser.length() > 0)
+        mqtt.connect(clientId.c_str(), config.mqttUser.c_str(), config.mqttPass.c_str());
+      else
+        mqtt.connect(clientId.c_str());
+      if (mqtt.connected())
+      {
+        mqtt.subscribe((config.mqttTopic + "/set").c_str());
+        Serial.println("MQTT connected");
+      }
+    }
+    mqtt.loop();
+    if ((millis() - time_mqtt) > 60000 && mqtt.connected())
+    {
+      time_mqtt = millis();
+      mqttPublish();
+    }
+  }
+
   // Remote serial bridge
   if (serialServer.hasClient())
   {
@@ -303,7 +375,6 @@ void loop()
     if ((millis() - time_gpio0) > 5000)
     {
       Serial.println("Admin Reset");
-      // Reset to defaults
       config.ssid = "";
       config.password = "";
       config.HeatSP = 50;
@@ -386,6 +457,28 @@ void loop()
     }
   }
 
+  // Runtime tracking
+  if (config.RelayState && !runtimeWasOn)
+  {
+    runtimeLastOn = millis();
+    runtimeWasOn = true;
+  }
+  else if (!config.RelayState && runtimeWasOn)
+  {
+    uint32_t elapsed = (millis() - runtimeLastOn) / 1000;
+    runtimeToday += elapsed;
+    runtimeTotal += elapsed;
+    time_t now = time(nullptr);
+    if (now > 100000)
+    {
+      struct tm *ti = localtime(&now);
+      if (ti->tm_hour >= 0 && ti->tm_hour < 24)
+        runtimeHourly[ti->tm_hour] += elapsed;
+    }
+    runtimeWasOn = false;
+    config.runtimeTotal = runtimeTotal;
+  }
+
   // Relay control
   if (config.RelayState)
     pinMode(relayPin, OUTPUT);
@@ -401,6 +494,34 @@ void loop()
   }
 
   delay(10);
+}
+
+void mqttCallback(char* topic, byte* payload, unsigned int length)
+{
+  String msg;
+  for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
+  msg.trim();
+  Serial.println("MQTT: " + msg);
+  if (msg == "on" || msg == "1") config.HeatStatus = true;
+  else if (msg == "off" || msg == "0") config.HeatStatus = false;
+  else if (msg.startsWith("sp:"))
+  {
+    int sp = msg.substring(3).toInt();
+    if (sp >= 35 && sp <= 80) config.HeatSP = sp;
+  }
+  WriteConfig();
+}
+
+void mqttPublish()
+{
+  if (!mqtt.connected()) return;
+  String j = "{\"temp\":" + String(Temp_Avg, 1);
+  j += ",\"sp\":" + String(config.HeatSP);
+  j += ",\"enabled\":" + String(config.HeatStatus ? "true" : "false");
+  j += ",\"relay\":" + String(config.RelayState ? "true" : "false");
+  j += ",\"runtime\":" + String(runtimeToday);
+  j += "}";
+  mqtt.publish(config.mqttTopic.c_str(), j.c_str());
 }
 
 double Thermister(int val)
@@ -421,7 +542,8 @@ void fetchWeather()
   HTTPClient http;
   String url = "http://api.open-meteo.com/v1/forecast?latitude=" + String(config.latitude, 4) +
                "&longitude=" + String(config.longitude, 4) +
-               "&current=temperature_2m,relative_humidity_2m,weather_code&temperature_unit=fahrenheit";
+               "&current=temperature_2m,relative_humidity_2m,weather_code" +
+               "&hourly=temperature_2m&forecast_hours=12&temperature_unit=fahrenheit";
 
   Serial.println("Fetching weather: " + url);
   serialLogPrintln("Fetching weather: " + url);
@@ -431,7 +553,7 @@ void fetchWeather()
   if (httpCode == 200)
   {
     String payload = http.getString();
-    DynamicJsonDocument doc(1024);
+    DynamicJsonDocument doc(2048);
     DeserializationError error = deserializeJson(doc, payload);
     if (!error)
     {
@@ -444,6 +566,21 @@ void fetchWeather()
       time_t now = time(nullptr);
       weatherLastUpdate = String(ctime(&now));
       weatherLastUpdate.trim();
+
+      // Hourly forecast
+      JsonArray hourly = doc["hourly"]["temperature_2m"];
+      JsonArray times = doc["hourly"]["time"];
+      if (hourly.size() >= FORECAST_HOURS)
+      {
+        for (int i = 0; i < FORECAST_HOURS; i++)
+        {
+          forecastTemp[i] = hourly[i] | 0.0;
+          String t = times[i] | "";
+          int h = t.length() >= 13 ? t.substring(11, 13).toInt() : i;
+          forecastHour[i] = h;
+        }
+        forecastValid = true;
+      }
       Serial.printf("Weather: %.1f F, %d%%, %s\n", outdoorTemp, outdoorHumidity, outdoorCondition.c_str());
     }
   }
@@ -453,6 +590,75 @@ void fetchWeather()
     weatherValid = false;
   }
   http.end();
+}
+
+void send_runtime_json()
+{
+  String json = "{\"today\":" + String(runtimeToday);
+  json += ",\"total\":" + String(runtimeTotal);
+  json += ",\"hourly\":[";
+  for (int i = 0; i < 24; i++)
+  {
+    if (i) json += ",";
+    json += String(runtimeHourly[i]);
+  }
+  json += "]}";
+  server.send(200, "application/json", json);
+}
+
+void send_backup_json()
+{
+  String json = "{";
+  json += "\"ssid\":\"" + config.ssid + "\",";
+  json += "\"HeatSP\":" + String(config.HeatSP) + ",";
+  json += "\"HeatHist\":" + String(config.HeatHist) + ",";
+  json += "\"HeatStatus\":" + String(config.HeatStatus ? "true" : "false") + ",";
+  json += "\"scheduleEnabled\":" + String(config.scheduleEnabled ? "true" : "false") + ",";
+  json += "\"latitude\":" + String(config.latitude, 4) + ",";
+  json += "\"longitude\":" + String(config.longitude, 4) + ",";
+  json += "\"zipCode\":\"" + config.zipCode + "\",";
+  json += "\"locationName\":\"" + config.locationName + "\",";
+  json += "\"mqttBroker\":\"" + config.mqttBroker + "\",";
+  json += "\"mqttPort\":" + String(config.mqttPort) + ",";
+  json += "\"mqttTopic\":\"" + config.mqttTopic + "\",";
+  json += "\"mqttEnabled\":" + String(config.mqttEnabled ? "true" : "false");
+  json += "}";
+  server.send(200, "application/json", json);
+}
+
+void handle_restore()
+{
+  if (!server.hasArg("plain")) { server.send(400, "application/json", "{\"ok\":false}"); return; }
+  String body = server.arg("plain");
+  DynamicJsonDocument doc(1024);
+  if (deserializeJson(doc, body))
+  {
+    server.send(400, "application/json", "{\"ok\":false,\"error\":\"parse\"}");
+    return;
+  }
+  if (doc.containsKey("HeatSP")) config.HeatSP = doc["HeatSP"];
+  if (doc.containsKey("HeatHist")) config.HeatHist = doc["HeatHist"];
+  if (doc.containsKey("HeatStatus")) config.HeatStatus = doc["HeatStatus"];
+  if (doc.containsKey("scheduleEnabled")) config.scheduleEnabled = doc["scheduleEnabled"];
+  if (doc.containsKey("latitude")) config.latitude = doc["latitude"];
+  if (doc.containsKey("longitude")) config.longitude = doc["longitude"];
+  if (doc.containsKey("zipCode")) config.zipCode = doc["zipCode"].as<String>();
+  if (doc.containsKey("locationName")) config.locationName = doc["locationName"].as<String>();
+  if (doc.containsKey("mqttBroker")) config.mqttBroker = doc["mqttBroker"].as<String>();
+  if (doc.containsKey("mqttPort")) config.mqttPort = doc["mqttPort"];
+  if (doc.containsKey("mqttTopic")) config.mqttTopic = doc["mqttTopic"].as<String>();
+  if (doc.containsKey("mqttEnabled")) config.mqttEnabled = doc["mqttEnabled"];
+  WriteConfig();
+  server.send(200, "application/json", "{\"ok\":true}");
+  delay(500);
+  ESP.restart();
+}
+
+void handle_reboot()
+{
+  server.send(200, "application/json", "{\"ok\":true}");
+  delay(500);
+  ESP.restart();
 }
 
 void send_history_json()
@@ -502,6 +708,7 @@ void toggleHeaterState()
   config.HeatStatus = !config.HeatStatus;
   WriteConfig();
   send_status_json();
+  if (mqtt.connected()) mqttPublish();
 }
 
 void set_setpoint()
@@ -522,7 +729,6 @@ void set_setpoint()
 
 void send_status_json()
 {
-  // Local time
   time_t now = time(nullptr);
   String timeStr = "--:--";
   if (now > 100000) {
@@ -547,7 +753,8 @@ void send_status_json()
   json += "\"zip\":\"" + config.zipCode + "\",";
   json += "\"location\":\"" + config.locationName + "\",";
   json += "\"lat\":" + String(config.latitude, 4) + ",";
-  json += "\"lon\":" + String(config.longitude, 4);
+  json += "\"lon\":" + String(config.longitude, 4) + ",";
+  json += "\"runtimeToday\":" + String(runtimeToday);
   json += "}";
   server.send(200, "application/json", json);
 }
@@ -614,6 +821,10 @@ void WriteConfig()
   WriteStringToEEPROM(320, config.DeviceName);
   WriteStringToEEPROM(460, config.zipCode);
   WriteStringToEEPROM(480, config.locationName);
+  EEPROMWritelong(200, config.runtimeTotal);
+  EEPROM.write(204, config.mqttEnabled);
+  EEPROM.write(205, config.mqttPort & 0xFF);
+  EEPROM.write(206, (config.mqttPort >> 8) & 0xFF);
 
   EEPROM.commit();
 }
@@ -665,7 +876,10 @@ boolean ReadConfig()
     if (config.loginUser.length() == 0) config.loginUser = "admin";
     config.zipCode = ReadStringFromEEPROM(460);
     config.locationName = ReadStringFromEEPROM(480);
-    // Force known-good default if hash looks unset
+    config.runtimeTotal = EEPROMReadlong(200);
+    config.mqttEnabled = EEPROM.read(204);
+    config.mqttPort = EEPROM.read(205) | (EEPROM.read(206) << 8);
+    if (config.mqttPort == 0 || config.mqttPort == 0xFFFF) config.mqttPort = 1883;
     if (config.loginHash == 0 || config.loginHash == 0xFFFFFFFF)
     {
       config.loginUser = "admin";
