@@ -39,6 +39,7 @@ void send_info_json();
 void send_weather_json();
 void fetchWeather();
 double Thermister(int val);
+void send_history_json();
 
 WiFiServer serialServer(23);
 WiFiClient serialClient;
@@ -47,6 +48,15 @@ WiFiClient serialClient;
 #define SERIAL_LOG_SIZE 4096
 char serialLog[SERIAL_LOG_SIZE];
 size_t serialLogPos = 0;
+
+// Temperature history (5-minute samples, 24 hours = 288 points)
+#define HISTORY_SIZE 288
+#define HISTORY_INTERVAL 300000  // 5 minutes in ms
+float historyIndoor[HISTORY_SIZE];
+float historyOutdoor[HISTORY_SIZE];
+uint8_t historyCount = 0;
+uint8_t historyHead = 0;
+uint32_t time_history = 0;
 
 void serialLogPrint(const String& s)
 {
@@ -176,6 +186,7 @@ void setup()
   server.on("/scan", []() { if (requireAuth()) send_scan_json(); });
   server.on("/info.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Information); });
   server.on("/info.json", []() { if (requireAuth()) send_info_json(); });
+  server.on("/history.json", []() { if (requireAuth()) send_history_json(); });
   server.on("/serial", []() {
     if (!requireAuth()) return;
     String out;
@@ -220,6 +231,7 @@ void setup()
   time_read = millis();
   time_logic = millis();
   time_weather = millis();
+  time_history = millis();
 
   digitalWrite(16, LOW);
   pinMode(16, INPUT);
@@ -325,6 +337,16 @@ void loop()
     logicReady = true;
   }
 
+  // History sampling (every 5 minutes)
+  if ((millis() - time_history) > HISTORY_INTERVAL && logicReady)
+  {
+    time_history = millis();
+    historyIndoor[historyHead] = Temp_Avg;
+    historyOutdoor[historyHead] = weatherValid ? outdoorTemp : NAN;
+    historyHead = (historyHead + 1) % HISTORY_SIZE;
+    if (historyCount < HISTORY_SIZE) historyCount++;
+  }
+
   // Control logic with schedule
   if (((millis() - time_logic) > LOGIC_CHANGE) && logicReady)
   {
@@ -428,6 +450,29 @@ void fetchWeather()
     weatherValid = false;
   }
   http.end();
+}
+
+void send_history_json()
+{
+  String json = "{\"indoor\":[";
+  for (uint8_t i = 0; i < historyCount; i++)
+  {
+    uint8_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
+    if (i > 0) json += ",";
+    json += String(historyIndoor[idx], 1);
+  }
+  json += "],\"outdoor\":[";
+  for (uint8_t i = 0; i < historyCount; i++)
+  {
+    uint8_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
+    if (i > 0) json += ",";
+    if (isnan(historyOutdoor[idx]))
+      json += "null";
+    else
+      json += String(historyOutdoor[idx], 1);
+  }
+  json += "]}";
+  server.send(200, "application/json", json);
 }
 
 void send_info_json()
