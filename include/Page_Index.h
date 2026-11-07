@@ -39,6 +39,17 @@ const char PAGE_Index[] PROGMEM = R"=====(
   </div>
 
   <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="color:#94a3b8; font-size:0.9rem;">TEMPERATURE HISTORY (24h)</div>
+      <div style="font-size:0.8rem;">
+        <span style="color:#3b82f6;">● Indoor</span>
+        <span style="color:#f59e0b; margin-left:12px;">● Outdoor</span>
+      </div>
+    </div>
+    <canvas id="tempChart" width="640" height="200" style="width:100%; height:200px; background:#0f172a; border-radius:8px;"></canvas>
+  </div>
+
+  <div class="card">
     <div class="row" style="justify-content:space-between;">
       <div>
         <div style="color:#94a3b8; font-size:0.9rem;">HEATER ENABLED</div>
