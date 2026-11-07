@@ -29,6 +29,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
           <span id="weatherIcon" style="font-size:1.8rem;">❓</span>
           <span id="outdoorCond" style="color:#94a3b8; font-size:1.05rem;">--</span>
         </div>
+        <div style="color:#64748b; font-size:0.8rem; margin-top:6px;" id="locationInfo">--</div>
       </div>
       <div style="text-align:right;">
         <div style="font-size:1.2rem;" id="outdoorHum">--%</div>
