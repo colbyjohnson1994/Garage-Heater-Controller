@@ -107,6 +107,7 @@ void setup()
     config.HeatStatus = false;
     config.AdminEnabled = false;
     config.zipCode = "57701";
+    config.locationName = "Rapid City, SD";
     config.latitude = 44.0805; // Rapid City default
     config.longitude = -103.2310;
     config.scheduleEnabled = false;
@@ -542,7 +543,11 @@ void send_status_json()
   json += "\"humidity\":" + String(outdoorHumidity) + ",";
   json += "\"condition\":\"" + outdoorCondition + "\",";
   json += "\"icon\":\"" + outdoorIcon + "\",";
-  json += "\"time\":\"" + timeStr + "\"";
+  json += "\"time\":\"" + timeStr + "\",";
+  json += "\"zip\":\"" + config.zipCode + "\",";
+  json += "\"location\":\"" + config.locationName + "\",";
+  json += "\"lat\":" + String(config.latitude, 4) + ",";
+  json += "\"lon\":" + String(config.longitude, 4);
   json += "}";
   server.send(200, "application/json", json);
 }
@@ -608,6 +613,7 @@ void WriteConfig()
   WriteStringToEEPROM(432, config.loginUser);
   WriteStringToEEPROM(320, config.DeviceName);
   WriteStringToEEPROM(460, config.zipCode);
+  WriteStringToEEPROM(480, config.locationName);
 
   EEPROM.commit();
 }
@@ -658,6 +664,7 @@ boolean ReadConfig()
     config.loginUser = ReadStringFromEEPROM(432);
     if (config.loginUser.length() == 0) config.loginUser = "admin";
     config.zipCode = ReadStringFromEEPROM(460);
+    config.locationName = ReadStringFromEEPROM(480);
     // Force known-good default if hash looks unset
     if (config.loginHash == 0 || config.loginHash == 0xFFFFFFFF)
     {
