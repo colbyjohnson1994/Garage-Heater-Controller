@@ -30,6 +30,7 @@ const char PAGE_Network[] PROGMEM = R"=====(
       <p id="geoResult" style="color:#94a3b8; font-size:0.85rem; margin-top:8px;"></p>
       <input type="hidden" name="lat" id="lat">
       <input type="hidden" name="lon" id="lon">
+      <input type="hidden" name="place" id="place">
       <button type="submit" class="btn">Save Settings</button>
     </form>
   </div>
@@ -94,6 +95,7 @@ function lookupZip() {
       if (d.ok) {
         document.getElementById('lat').value = d.lat;
         document.getElementById('lon').value = d.lon;
+        document.getElementById('place').value = d.place || '';
         result.style.color = '#22c55e';
         result.textContent = d.place + ' (' + d.lat.toFixed(4) + ', ' + d.lon.toFixed(4) + ')';
       } else {
@@ -122,8 +124,12 @@ function loadCurrentSettings() {
       // Show current coords if present
       const lat = document.getElementById('lat').value;
       const lon = document.getElementById('lon').value;
+      const place = document.getElementById('place').value;
       if (lat && lon) {
-        document.getElementById('geoResult').textContent = 'Current: ' + parseFloat(lat).toFixed(4) + ', ' + parseFloat(lon).toFixed(4);
+        let txt = '';
+        if (place) txt += place + ' · ';
+        txt += parseFloat(lat).toFixed(4) + ', ' + parseFloat(lon).toFixed(4);
+        document.getElementById('geoResult').textContent = 'Current: ' + txt;
       }
     });
   fetch('/admin/connectionstate')
@@ -149,6 +155,7 @@ void send_network_configuration_html()
       if (server.argName(i) == "zip") config.zipCode = server.arg(i);
       if (server.argName(i) == "lat") config.latitude = server.arg(i).toFloat();
       if (server.argName(i) == "lon") config.longitude = server.arg(i).toFloat();
+      if (server.argName(i) == "place") config.locationName = urldecode(server.arg(i));
     }
     if (!server.hasArg("dhcp")) config.dhcp = false;
     WriteConfig();
@@ -169,6 +176,7 @@ void send_network_configuration_values_html()
   values += "zip|" + config.zipCode + "|input\n";
   values += "lat|" + String(config.latitude, 4) + "|input\n";
   values += "lon|" + String(config.longitude, 4) + "|input\n";
+  values += "place|" + config.locationName + "|input\n";
   server.send(200, "text/plain", values);
 }
 
