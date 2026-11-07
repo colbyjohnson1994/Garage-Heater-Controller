@@ -1,6 +1,18 @@
 const char PAGE_Script_js[] PROGMEM = R"=====(
 let chartData = { indoor: [], outdoor: [], min: 0, max: 0, pad: 30 };
 
+function weatherIcon(code) {
+  if (code === 0) return '☀️';
+  if (code <= 3) return '⛅';
+  if (code <= 48) return '🌫️';
+  if (code <= 55) return '🌦️';
+  if (code <= 65) return '🌧️';
+  if (code <= 75) return '❄️';
+  if (code <= 82) return '🌧️';
+  if (code >= 95) return '⛈️';
+  return '❓';
+}
+
 function loadStatus() {
   fetch('/status')
     .then(r => r.json())
@@ -43,13 +55,19 @@ function loadForecast() {
   fetch('/forecast.json').then(r => r.json()).then(d => {
     const el = document.getElementById('forecast');
     if (!el || !d.temps) return;
-    let html = '';
+    let html = '<div style="display:flex; gap:12px; overflow-x:auto; padding:8px 0;">';
     d.temps.forEach((t, i) => {
       if (t === null) return;
       const h = d.hours[i];
-      html += '<span style="margin-right:10px;">' + h + ':00 ' + t.toFixed(0) + '°</span>';
+      const icon = weatherIcon(d.codes ? d.codes[i] : 0);
+      html += '<div style="text-align:center; min-width:50px;">';
+      html += '<div style="font-size:0.75rem; color:#64748b;">' + h + ':00</div>';
+      html += '<div style="font-size:1.2rem;">' + icon + '</div>';
+      html += '<div style="font-weight:500;">' + t.toFixed(0) + '°</div>';
+      html += '</div>';
     });
-    el.innerHTML = html || '';
+    html += '</div>';
+    el.innerHTML = html;
   }).catch(()=>{});
 }
 
@@ -120,7 +138,6 @@ function drawChart(indoor, outdoor, hoverIndex) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Dots
     ctx.fillStyle = '#3b82f6';
     ctx.beginPath();
     ctx.arc(hx, y(indoor[hoverIndex]), 4, 0, Math.PI * 2);
@@ -132,7 +149,6 @@ function drawChart(indoor, outdoor, hoverIndex) {
       ctx.fill();
     }
 
-    // Tooltip
     const tip = document.getElementById('chartTip');
     if (tip) {
       let txt = 'In: ' + indoor[hoverIndex].toFixed(1) + '°';
@@ -145,7 +161,6 @@ function drawChart(indoor, outdoor, hoverIndex) {
     }
   }
 
-  // Labels
   ctx.fillStyle = '#94a3b8';
   ctx.font = '12px system-ui';
   ctx.fillText(max.toFixed(0) + '°', 4, pad + 4);
