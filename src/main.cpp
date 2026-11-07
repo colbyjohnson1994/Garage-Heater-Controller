@@ -26,10 +26,6 @@
 #include "Page_Style.css.h"
 #include "Page_Script.js.h"
 
-#define ACCESS_POINT_NAME "Garage Heater"
-#define ACCESS_POINT_PASSWORD "12345678"
-#define OTA_PASSWORD "heaterota"
-
 #ifndef FIRMWARE_VERSION
 #define FIRMWARE_VERSION "1.6.0"
 #endif
@@ -132,14 +128,14 @@ void setup()
     WiFi.mode(WIFI_AP_STA);
   }
   WiFi.softAPConfig(IPAddress(192,168,4,1), IPAddress(192,168,4,1), IPAddress(255,255,255,0));
-  WiFi.softAP(ACCESS_POINT_NAME, ACCESS_POINT_PASSWORD);
+  WiFi.softAP(AP_SSID, AP_PASSWORD);
   delay(100);
   Serial.println("AP IP: " + WiFi.softAPIP().toString());
   Serial.println("SSID stored: '" + config.ssid + "'");
   ConfigureWifi();
 
   // ArduinoOTA (local network only)
-  ArduinoOTA.setHostname("GarageHeater");
+  ArduinoOTA.setHostname(OTA_HOSTNAME);
   ArduinoOTA.setPassword(OTA_PASSWORD);
   ArduinoOTA.onStart([]() {
     Serial.println("OTA Start");
@@ -628,7 +624,7 @@ boolean ReadConfig()
   }
   else
   {
-    Serial.println("Configuration NOT FOUND");
+    Serial.println("Configuration NOT FOUND!!!!");
     return false;
   }
 }
