@@ -22,6 +22,14 @@ const char PAGE_Schedule[] PROGMEM = R"=====(
 </style>
 </head>
 <body>
+<div class="topnav">
+  <a href="/">Dashboard</a>
+  <a href="/schedule.html">Schedule</a>
+  <a href="/runtime.html">Runtime</a>
+  <a href="/config.html">Network</a>
+  <a href="/mqtt.html">MQTT</a>
+  <a href="/info.html">Info</a>
+</div>
 <div class="container">
   <h1>Weekly Schedule</h1>
   <div class="card">
@@ -38,7 +46,6 @@ const char PAGE_Schedule[] PROGMEM = R"=====(
   <div class="card" style="text-align:center;">
     <button class="btn" onclick="saveSchedule()">Save Schedule</button>
   </div>
-  <div class="nav"><a href="/">← Dashboard</a></div>
 </div>
 <script src="/script.js"></script>
 <script>
