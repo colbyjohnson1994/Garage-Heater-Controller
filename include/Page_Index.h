@@ -37,6 +37,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
         <button class="btn btn-secondary" style="margin-top:10px; padding:6px 12px; font-size:0.85rem;" onclick="refreshWeather()">Refresh</button>
       </div>
     </div>
+    <div id="forecast" style="margin-top:12px; font-size:0.8rem; color:#94a3b8;"></div>
   </div>
 
   <div class="card">
@@ -73,6 +74,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
 
   <div class="nav">
     <a href="/schedule.html">Schedule</a>
+    <a href="/runtime.html">Runtime</a>
     <a href="/config.html">Network & Location</a>
     <a href="/changepass">Password</a>
     <a href="/info.html">Info</a>
