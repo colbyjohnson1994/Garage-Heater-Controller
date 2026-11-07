@@ -22,11 +22,14 @@ const char PAGE_Network[] PROGMEM = R"=====(
         <div><label>Gateway</label><input type="text" name="gw" id="gw" placeholder="192.168.1.1"></div>
       </div>
       <hr style="border-color:#334155; margin:20px 0;">
-      <label>Latitude</label>
-      <input type="text" name="lat" id="lat" placeholder="44.0805">
-      <label>Longitude</label>
-      <input type="text" name="lon" id="lon" placeholder="-103.2310">
-      <p style="color:#94a3b8; font-size:0.85rem;">Used for outdoor weather via Open-Meteo (no API key needed).</p>
+      <label>Zip Code</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" name="zip" id="zip" placeholder="57701" maxlength="10" style="flex:1;">
+        <button type="button" class="btn btn-secondary" onclick="lookupZip()">Lookup</button>
+      </div>
+      <p id="geoResult" style="color:#94a3b8; font-size:0.85rem; margin-top:8px;"></p>
+      <input type="hidden" name="lat" id="lat">
+      <input type="hidden" name="lon" id="lon">
       <button type="submit" class="btn">Save Settings</button>
     </form>
   </div>
@@ -79,6 +82,28 @@ function selectSSID(ssid) {
   document.getElementById('password').focus();
 }
 
+function lookupZip() {
+  const zip = document.getElementById('zip').value.trim();
+  const result = document.getElementById('geoResult');
+  if (!zip) { result.textContent = 'Enter a zip code'; result.style.color = '#ef4444'; return; }
+  result.textContent = 'Looking up…';
+  result.style.color = '#94a3b8';
+  fetch('/geocode?zip=' + encodeURIComponent(zip))
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        document.getElementById('lat').value = d.lat;
+        document.getElementById('lon').value = d.lon;
+        result.style.color = '#22c55e';
+        result.textContent = d.place + ' (' + d.lat.toFixed(4) + ', ' + d.lon.toFixed(4) + ')';
+      } else {
+        result.style.color = '#ef4444';
+        result.textContent = d.error || 'Lookup failed';
+      }
+    })
+    .catch(() => { result.style.color = '#ef4444'; result.textContent = 'Lookup failed'; });
+}
+
 function loadCurrentSettings() {
   fetch('/admin/values')
     .then(r => r.text())
@@ -94,6 +119,12 @@ function loadCurrentSettings() {
         if (el.type === 'checkbox') el.checked = (val === 'checked');
         else el.value = val;
       });
+      // Show current coords if present
+      const lat = document.getElementById('lat').value;
+      const lon = document.getElementById('lon').value;
+      if (lat && lon) {
+        document.getElementById('geoResult').textContent = 'Current: ' + parseFloat(lat).toFixed(4) + ', ' + parseFloat(lon).toFixed(4);
+      }
     });
   fetch('/admin/connectionstate')
     .then(r => r.text())
@@ -115,6 +146,7 @@ void send_network_configuration_html()
       if (server.argName(i) == "ssid") config.ssid = urldecode(server.arg(i));
       if (server.argName(i) == "password") config.password = urldecode(server.arg(i));
       if (server.argName(i) == "dhcp") config.dhcp = true;
+      if (server.argName(i) == "zip") config.zipCode = server.arg(i);
       if (server.argName(i) == "lat") config.latitude = server.arg(i).toFloat();
       if (server.argName(i) == "lon") config.longitude = server.arg(i).toFloat();
     }
@@ -134,6 +166,7 @@ void send_network_configuration_values_html()
   values += "ssid|" + config.ssid + "|input\n";
   values += "password|" + config.password + "|input\n";
   values += "dhcp|" + String(config.dhcp ? "checked" : "") + "|chk\n";
+  values += "zip|" + config.zipCode + "|input\n";
   values += "lat|" + String(config.latitude, 4) + "|input\n";
   values += "lon|" + String(config.longitude, 4) + "|input\n";
   server.send(200, "text/plain", values);
@@ -177,6 +210,45 @@ void send_scan_json()
   json += "]}";
   WiFi.scanDelete();
   server.send(200, "application/json", json);
+}
+
+void send_geocode_json()
+{
+  String zip = server.arg("zip");
+  zip.trim();
+  if (zip.length() < 5)
+  {
+    server.send(200, "application/json", "{\"ok\":false,\"error\":\"Invalid zip\"}");
+    return;
+  }
+
+  WiFiClient client;
+  HTTPClient http;
+  String url = "http://api.zippopotam.us/us/" + zip;
+  http.begin(client, url);
+  int code = http.GET();
+
+  if (code == 200)
+  {
+    String payload = http.getString();
+    DynamicJsonDocument doc(1024);
+    if (!deserializeJson(doc, payload))
+    {
+      JsonArray places = doc["places"];
+      if (places.size() > 0)
+      {
+        float lat = places[0]["latitude"].as<float>();
+        float lon = places[0]["longitude"].as<float>();
+        String place = places[0]["place name"].as<String>() + ", " + places[0]["state abbreviation"].as<String>();
+        String json = "{\"ok\":true,\"lat\":" + String(lat, 4) + ",\"lon\":" + String(lon, 4) + ",\"place\":\"" + place + "\"}";
+        http.end();
+        server.send(200, "application/json", json);
+        return;
+      }
+    }
+  }
+  http.end();
+  server.send(200, "application/json", "{\"ok\":false,\"error\":\"Zip not found\"}");
 }
 
 void send_information_values_html()
