@@ -24,6 +24,7 @@
 #include "Page_Information.h"
 #include "Page_Login.h"
 #include "Page_Runtime.h"
+#include "Page_MQTT.h"
 #include "Page_Style.css.h"
 #include "Page_Script.js.h"
 
@@ -47,6 +48,8 @@ void handle_restore();
 void handle_reboot();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 void mqttPublish();
+void send_mqtt_html();
+void send_mqtt_json();
 
 WiFiClient mqttWifiClient;
 PubSubClient mqtt(mqttWifiClient);
@@ -68,6 +71,14 @@ uint32_t time_history = 0;
 // Runtime hourly (seconds on per hour today)
 uint16_t runtimeHourly[24] = {0};
 uint32_t time_mqtt = 0;
+
+// Temperature rate of change (samples every 10 seconds, 6 samples = 1 minute)
+#define RATE_SAMPLES 6
+float rateSamples[RATE_SAMPLES];
+uint8_t rateIndex = 0;
+uint8_t rateCount = 0;
+uint32_t time_rate = 0;
+float tempRate = 0; // degrees per minute
 
 void serialLogPrint(const String& s)
 {
@@ -221,6 +232,8 @@ void setup()
   server.on("/config.html", []() { if (requireAuth()) send_network_configuration_html(); });
   server.on("/scan", []() { if (requireAuth()) send_scan_json(); });
   server.on("/geocode", []() { if (requireAuth()) send_geocode_json(); });
+  server.on("/mqtt.html", []() { if (requireAuth()) send_mqtt_html(); });
+  server.on("/mqtt.json", []() { if (requireAuth()) send_mqtt_json(); });
   server.on("/info.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Information); });
   server.on("/info.json", []() { if (requireAuth()) send_info_json(); });
   server.on("/history.json", []() { if (requireAuth()) send_history_json(); });
@@ -288,6 +301,7 @@ void setup()
   time_weather = millis();
   time_history = millis();
   time_mqtt = millis();
+  time_rate = millis();
 
   digitalWrite(16, LOW);
   pinMode(16, INPUT);
@@ -400,6 +414,24 @@ void loop()
     logicReady = true;
   }
 
+  // Rate sampling (every 10 seconds)
+  if ((millis() - time_rate) > 10000 && logicReady)
+  {
+    time_rate = millis();
+    rateSamples[rateIndex] = Temp_Avg;
+    rateIndex = (rateIndex + 1) % RATE_SAMPLES;
+    if (rateCount < RATE_SAMPLES) rateCount++;
+
+    if (rateCount >= 2)
+    {
+      // Calculate slope over available samples (each sample is 10 seconds apart)
+      float oldest = rateSamples[(rateIndex - rateCount + RATE_SAMPLES) % RATE_SAMPLES];
+      float newest = rateSamples[(rateIndex - 1 + RATE_SAMPLES) % RATE_SAMPLES];
+      float minutes = (rateCount - 1) * 10.0 / 60.0;
+      tempRate = (newest - oldest) / minutes;
+    }
+  }
+
   // History sampling (every 5 minutes)
   if ((millis() - time_history) > HISTORY_INTERVAL && logicReady)
   {
@@ -485,6 +517,42 @@ void loop()
   delay(10);
 }
 
+void send_mqtt_html()
+{
+  if (server.args() > 0)
+  {
+    config.mqttEnabled = server.hasArg("enabled");
+    if (server.hasArg("broker")) config.mqttBroker = server.arg("broker");
+    if (server.hasArg("port")) config.mqttPort = server.arg("port").toInt();
+    if (server.hasArg("user")) config.mqttUser = server.arg("user");
+    if (server.hasArg("pass") && server.arg("pass").length() > 0) config.mqttPass = server.arg("pass");
+    if (server.hasArg("topic")) config.mqttTopic = server.arg("topic");
+    WriteConfig();
+    if (config.mqttEnabled && config.mqttBroker.length() > 0)
+    {
+      mqtt.setServer(config.mqttBroker.c_str(), config.mqttPort);
+      mqtt.disconnect();
+    }
+    server.sendHeader("Location", "/mqtt.html", true);
+    server.send(302, "text/plain", "");
+    return;
+  }
+  server.send(200, "text/html", PAGE_MQTT);
+}
+
+void send_mqtt_json()
+{
+  String json = "{";
+  json += "\"enabled\":" + String(config.mqttEnabled ? "true" : "false") + ",";
+  json += "\"broker\":\"" + config.mqttBroker + "\",";
+  json += "\"port\":" + String(config.mqttPort) + ",";
+  json += "\"user\":\"" + config.mqttUser + "\",";
+  json += "\"topic\":\"" + config.mqttTopic + "\",";
+  json += "\"connected\":" + String(mqtt.connected() ? "true" : "false");
+  json += "}";
+  server.send(200, "application/json", json);
+}
+
 void mqttCallback(char* topic, byte* payload, unsigned int length)
 {
   String msg;
@@ -509,6 +577,7 @@ void mqttPublish()
   j += ",\"enabled\":" + String(config.HeatStatus ? "true" : "false");
   j += ",\"relay\":" + String(config.RelayState ? "true" : "false");
   j += ",\"runtime\":" + String(runtimeToday);
+  j += ",\"rate\":" + String(tempRate, 2);
   j += "}";
   mqtt.publish(config.mqttTopic.c_str(), j.c_str());
 }
@@ -745,7 +814,8 @@ void send_status_json()
   json += "\"location\":\"" + config.locationName + "\",";
   json += "\"lat\":" + String(config.latitude, 4) + ",";
   json += "\"lon\":" + String(config.longitude, 4) + ",";
-  json += "\"runtimeToday\":" + String(runtimeToday);
+  json += "\"runtimeToday\":" + String(runtimeToday) + ",";
+  json += "\"rate\":" + String(tempRate, 2);
   json += "}";
   server.send(200, "application/json", json);
 }
