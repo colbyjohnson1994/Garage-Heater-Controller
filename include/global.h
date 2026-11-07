@@ -40,6 +40,27 @@ String outdoorIcon = "❓";
 bool weatherValid = false;
 String weatherLastUpdate = "";
 
+// Hourly forecast (next 12 hours)
+#define FORECAST_HOURS 12
+float forecastTemp[FORECAST_HOURS];
+int forecastHour[FORECAST_HOURS];
+bool forecastValid = false;
+
+// Runtime tracking
+uint32_t runtimeToday = 0;      // seconds on today
+uint32_t runtimeTotal = 0;      // lifetime seconds
+uint32_t runtimeLastOn = 0;     // millis when last turned on
+bool runtimeWasOn = false;
+uint32_t runtimeDayStart = 0;    // day of year for reset
+
+// MQTT
+String mqttBroker = "";
+uint16_t mqttPort = 1883;
+String mqttUser = "";
+String mqttPass = "";
+String mqttTopic = "garage/heater";
+bool mqttEnabled = false;
+
 struct strConfig {
 	String ssid;
 	String password;
@@ -72,6 +93,15 @@ struct strConfig {
 	String loginUser;
 	uint32_t loginHash;
 	String sessionToken; // runtime only, not persisted
+	// MQTT
+	String mqttBroker;
+	uint16_t mqttPort;
+	String mqttUser;
+	String mqttPass;
+	String mqttTopic;
+	bool mqttEnabled;
+	// Runtime
+	uint32_t runtimeTotal;
 } config;
 
 void WriteConfig();
