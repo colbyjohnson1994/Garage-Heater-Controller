@@ -1,4 +1,6 @@
 const char PAGE_Script_js[] PROGMEM = R"=====(
+let chartData = { indoor: [], outdoor: [], min: 0, max: 0, pad: 30 };
+
 function loadStatus() {
   fetch('/status')
     .then(r => r.json())
@@ -51,7 +53,7 @@ function loadForecast() {
   }).catch(()=>{});
 }
 
-function drawChart(indoor, outdoor) {
+function drawChart(indoor, outdoor, hoverIndex) {
   const canvas = document.getElementById('tempChart');
   if (!canvas || indoor.length === 0) return;
   const ctx = canvas.getContext('2d');
@@ -64,6 +66,8 @@ function drawChart(indoor, outdoor) {
   let max = Math.max(...all);
   if (max - min < 5) { min -= 2; max += 2; }
   const pad = 30;
+
+  chartData = { indoor, outdoor, min, max, pad };
 
   function y(v) {
     return h - pad - ((v - min) / (max - min)) * (h - pad * 2);
@@ -104,6 +108,43 @@ function drawChart(indoor, outdoor) {
   });
   ctx.stroke();
 
+  // Hover highlight
+  if (hoverIndex >= 0 && hoverIndex < indoor.length) {
+    const hx = x(hoverIndex);
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(hx, pad);
+    ctx.lineTo(hx, h - pad);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dots
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath();
+    ctx.arc(hx, y(indoor[hoverIndex]), 4, 0, Math.PI * 2);
+    ctx.fill();
+    if (outdoor[hoverIndex] !== null) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.arc(hx, y(outdoor[hoverIndex]), 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Tooltip
+    const tip = document.getElementById('chartTip');
+    if (tip) {
+      let txt = 'In: ' + indoor[hoverIndex].toFixed(1) + '°';
+      if (outdoor[hoverIndex] !== null) txt += '  Out: ' + outdoor[hoverIndex].toFixed(1) + '°';
+      tip.textContent = txt;
+      tip.style.display = 'block';
+      const rect = canvas.getBoundingClientRect();
+      tip.style.left = (rect.left + hx * (rect.width / w) + 10) + 'px';
+      tip.style.top = (rect.top + 10) + 'px';
+    }
+  }
+
   // Labels
   ctx.fillStyle = '#94a3b8';
   ctx.font = '12px system-ui';
@@ -111,11 +152,47 @@ function drawChart(indoor, outdoor) {
   ctx.fillText(min.toFixed(0) + '°', 4, h - pad);
 }
 
+function setupChartHover() {
+  const canvas = document.getElementById('tempChart');
+  if (!canvas || canvas._hoverSetup) return;
+  canvas._hoverSetup = true;
+
+  let tip = document.getElementById('chartTip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'chartTip';
+    tip.style.cssText = 'position:fixed;background:#1e293b;color:#fff;padding:6px 10px;border-radius:6px;font-size:0.8rem;pointer-events:none;display:none;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+    document.body.appendChild(tip);
+  }
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const pad = chartData.pad;
+    const n = chartData.indoor.length;
+    if (n < 2) return;
+    const idx = Math.round(((mx - pad) / (canvas.width - pad * 2)) * (n - 1));
+    if (idx >= 0 && idx < n) {
+      drawChart(chartData.indoor, chartData.outdoor, idx);
+    }
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    const tip = document.getElementById('chartTip');
+    if (tip) tip.style.display = 'none';
+    drawChart(chartData.indoor, chartData.outdoor, -1);
+  });
+}
+
 function loadHistory() {
   fetch('/history.json')
     .then(r => r.json())
     .then(d => {
-      if (d.indoor && d.indoor.length > 1) drawChart(d.indoor, d.outdoor || []);
+      if (d.indoor && d.indoor.length > 1) {
+        drawChart(d.indoor, d.outdoor || [], -1);
+        setupChartHover();
+      }
     })
     .catch(() => {});
 }
