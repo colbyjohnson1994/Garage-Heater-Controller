@@ -62,7 +62,8 @@ struct strConfig {
 	bool HeatStatus;
 	bool RelayState;
 	bool AdminEnabled;
-	// New
+	// Location
+	String zipCode;
 	float latitude;
 	float longitude;
 	bool scheduleEnabled;
