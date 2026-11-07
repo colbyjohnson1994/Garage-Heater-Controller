@@ -26,9 +26,7 @@
 #include "Page_Style.css.h"
 #include "Page_Script.js.h"
 
-#ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.6.0"
-#endif
+// FIRMWARE_VERSION is set via build_flags in platformio.ini
 
 unsigned int Rs = 150000;
 double Vcc = 3.3;
