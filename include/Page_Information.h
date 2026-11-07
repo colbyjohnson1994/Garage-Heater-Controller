@@ -8,6 +8,14 @@ const char PAGE_Information[] PROGMEM = R"=====(
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<div class="topnav">
+  <a href="/">Dashboard</a>
+  <a href="/schedule.html">Schedule</a>
+  <a href="/runtime.html">Runtime</a>
+  <a href="/config.html">Network</a>
+  <a href="/mqtt.html">MQTT</a>
+  <a href="/info.html">Info</a>
+</div>
 <div class="container">
   <h1>Device Information</h1>
   <div class="card">
@@ -35,8 +43,6 @@ const char PAGE_Information[] PROGMEM = R"=====(
     </div>
     <pre id="serialOut" style="background:#0f172a; color:#22c55e; font-family:ui-monospace,monospace; font-size:0.8rem; padding:12px; border-radius:8px; height:280px; overflow-y:auto; margin:0; white-space:pre-wrap;"></pre>
   </div>
-
-  <div class="nav"><a href="/">← Dashboard</a></div>
 </div>
 <script>
 fetch('/info.json').then(r=>r.json()).then(d => {
