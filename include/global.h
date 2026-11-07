@@ -44,6 +44,7 @@ String weatherLastUpdate = "";
 #define FORECAST_HOURS 12
 float forecastTemp[FORECAST_HOURS];
 int forecastHour[FORECAST_HOURS];
+int forecastCode[FORECAST_HOURS];
 bool forecastValid = false;
 
 // Runtime tracking
