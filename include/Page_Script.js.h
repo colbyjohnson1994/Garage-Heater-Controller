@@ -27,6 +27,13 @@ function loadStatus() {
         badge.textContent = data.relay ? 'HEATING' : 'IDLE';
         badge.className = 'status-badge ' + (data.relay ? 'status-on' : 'status-off');
       }
+      const rateEl = document.getElementById('rate');
+      if (rateEl && data.rate !== undefined) {
+        const r = data.rate;
+        const sign = r > 0 ? '+' : '';
+        rateEl.textContent = sign + r.toFixed(2) + ' °/min';
+        rateEl.className = 'rate ' + (r > 0.05 ? 'up' : r < -0.05 ? 'down' : '');
+      }
       const outdoorEl = document.getElementById('outdoorTemp');
       if (outdoorEl && data.outdoor !== null) {
         outdoorEl.textContent = data.outdoor.toFixed(1) + '°F';
