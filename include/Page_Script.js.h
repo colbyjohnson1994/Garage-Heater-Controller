@@ -37,6 +37,20 @@ function loadStatus() {
     .catch(e => console.error(e));
 }
 
+function loadForecast() {
+  fetch('/forecast.json').then(r => r.json()).then(d => {
+    const el = document.getElementById('forecast');
+    if (!el || !d.temps) return;
+    let html = '';
+    d.temps.forEach((t, i) => {
+      if (t === null) return;
+      const h = d.hours[i];
+      html += '<span style="margin-right:10px;">' + h + ':00 ' + t.toFixed(0) + '°</span>';
+    });
+    el.innerHTML = html || '';
+  }).catch(()=>{});
+}
+
 function drawChart(indoor, outdoor) {
   const canvas = document.getElementById('tempChart');
   if (!canvas || indoor.length === 0) return;
@@ -108,7 +122,7 @@ function loadHistory() {
 
 function refreshWeather() {
   fetch('/weather/refresh').then(() => {
-    setTimeout(loadStatus, 1500);
+    setTimeout(() => { loadStatus(); loadForecast(); }, 1500);
   });
 }
 
@@ -125,7 +139,9 @@ function saveSetpoint() {
 function initDashboard() {
   loadStatus();
   loadHistory();
+  loadForecast();
   setInterval(loadStatus, 3000);
   setInterval(loadHistory, 60000);
+  setInterval(loadForecast, 300000);
 }
 )=====";
