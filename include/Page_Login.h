@@ -5,6 +5,7 @@ const char PAGE_Login[] PROGMEM = R"=====(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login - Garage Heater</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -85,6 +86,7 @@ const char PAGE_ChangePassword[] PROGMEM = R"=====(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Change Password - Garage Heater</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
