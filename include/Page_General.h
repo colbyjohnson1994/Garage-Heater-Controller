@@ -5,6 +5,7 @@ const char PAGE_Schedule[] PROGMEM = R"=====(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Schedule - Garage Heater</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 <style>
 .day-row { margin-bottom: 18px; }
