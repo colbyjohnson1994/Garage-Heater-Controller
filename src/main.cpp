@@ -64,8 +64,9 @@ size_t serialLogPos = 0;
 #define HISTORY_INTERVAL 300000  // 5 minutes in ms
 float historyIndoor[HISTORY_SIZE];
 float historyOutdoor[HISTORY_SIZE];
-uint8_t historyCount = 0;
-uint8_t historyHead = 0;
+uint32_t historyTime[HISTORY_SIZE];  // epoch seconds for each sample
+uint16_t historyCount = 0;
+uint16_t historyHead = 0;
 uint32_t time_history = 0;
 
 // Runtime hourly (seconds on per hour today)
@@ -438,6 +439,7 @@ void loop()
     time_history = millis();
     historyIndoor[historyHead] = Temp_Avg;
     historyOutdoor[historyHead] = weatherValid ? outdoorTemp : NAN;
+    historyTime[historyHead] = time(nullptr);
     historyHead = (historyHead + 1) % HISTORY_SIZE;
     if (historyCount < HISTORY_SIZE) historyCount++;
   }
@@ -725,21 +727,38 @@ void handle_reboot()
 void send_history_json()
 {
   String json = "{\"indoor\":[";
-  for (uint8_t i = 0; i < historyCount; i++)
+  for (uint16_t i = 0; i < historyCount; i++)
   {
-    uint8_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
+    uint16_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
     if (i > 0) json += ",";
     json += String(historyIndoor[idx], 1);
   }
   json += "],\"outdoor\":[";
-  for (uint8_t i = 0; i < historyCount; i++)
+  for (uint16_t i = 0; i < historyCount; i++)
   {
-    uint8_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
+    uint16_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
     if (i > 0) json += ",";
     if (isnan(historyOutdoor[idx]))
       json += "null";
     else
       json += String(historyOutdoor[idx], 1);
+  }
+  json += "],\"times\":[";
+  for (uint16_t i = 0; i < historyCount; i++)
+  {
+    uint16_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
+    if (i > 0) json += ",";
+    if (historyTime[idx] > 100000)
+    {
+      struct tm *ti = localtime((time_t*)&historyTime[idx]);
+      char buf[6];
+      sprintf(buf, "%02d:%02d", ti->tm_hour, ti->tm_min);
+      json += "\"" + String(buf) + "\"";
+    }
+    else
+    {
+      json += "null";
+    }
   }
   json += "]}";
   server.send(200, "application/json", json);
