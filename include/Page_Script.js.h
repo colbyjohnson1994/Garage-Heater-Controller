@@ -1,5 +1,5 @@
 const char PAGE_Script_js[] PROGMEM = R"=====(
-let chartData = { indoor: [], outdoor: [], min: 0, max: 0, pad: 30 };
+let chartData = { indoor: [], outdoor: [], times: [], min: 0, max: 0, pad: 30 };
 
 function weatherIcon(code) {
   if (code === 0) return '☀️';
@@ -78,7 +78,7 @@ function loadForecast() {
   }).catch(()=>{});
 }
 
-function drawChart(indoor, outdoor, hoverIndex) {
+function drawChart(indoor, outdoor, times, hoverIndex) {
   const canvas = document.getElementById('tempChart');
   if (!canvas || indoor.length === 0) return;
   const ctx = canvas.getContext('2d');
@@ -92,7 +92,7 @@ function drawChart(indoor, outdoor, hoverIndex) {
   if (max - min < 5) { min -= 2; max += 2; }
   const pad = 30;
 
-  chartData = { indoor, outdoor, min, max, pad };
+  chartData = { indoor, outdoor, times: times || [], min, max, pad };
 
   function y(v) {
     return h - pad - ((v - min) / (max - min)) * (h - pad * 2);
@@ -133,6 +133,19 @@ function drawChart(indoor, outdoor, hoverIndex) {
   });
   ctx.stroke();
 
+  // X-axis time labels (show a few evenly spaced)
+  if (times && times.length > 1) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'center';
+    const labelCount = Math.min(5, times.length);
+    for (let i = 0; i < labelCount; i++) {
+      const idx = Math.round(i * (times.length - 1) / (labelCount - 1));
+      if (times[idx]) ctx.fillText(times[idx], x(idx), h - 6);
+    }
+    ctx.textAlign = 'left';
+  }
+
   // Hover highlight
   if (hoverIndex >= 0 && hoverIndex < indoor.length) {
     const hx = x(hoverIndex);
@@ -158,7 +171,9 @@ function drawChart(indoor, outdoor, hoverIndex) {
 
     const tip = document.getElementById('chartTip');
     if (tip) {
-      let txt = 'In: ' + indoor[hoverIndex].toFixed(1) + '°';
+      let txt = '';
+      if (times && times[hoverIndex]) txt += times[hoverIndex] + '  ';
+      txt += 'In: ' + indoor[hoverIndex].toFixed(1) + '°';
       if (outdoor[hoverIndex] !== null) txt += '  Out: ' + outdoor[hoverIndex].toFixed(1) + '°';
       tip.textContent = txt;
       tip.style.display = 'block';
@@ -196,14 +211,14 @@ function setupChartHover() {
     if (n < 2) return;
     const idx = Math.round(((mx - pad) / (canvas.width - pad * 2)) * (n - 1));
     if (idx >= 0 && idx < n) {
-      drawChart(chartData.indoor, chartData.outdoor, idx);
+      drawChart(chartData.indoor, chartData.outdoor, chartData.times, idx);
     }
   });
 
   canvas.addEventListener('mouseleave', () => {
     const tip = document.getElementById('chartTip');
     if (tip) tip.style.display = 'none';
-    drawChart(chartData.indoor, chartData.outdoor, -1);
+    drawChart(chartData.indoor, chartData.outdoor, chartData.times, -1);
   });
 }
 
@@ -212,7 +227,7 @@ function loadHistory() {
     .then(r => r.json())
     .then(d => {
       if (d.indoor && d.indoor.length > 1) {
-        drawChart(d.indoor, d.outdoor || [], -1);
+        drawChart(d.indoor, d.outdoor || [], d.times || [], -1);
         setupChartHover();
       }
     })
