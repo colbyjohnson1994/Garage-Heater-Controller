@@ -27,6 +27,7 @@
 #include "Page_MQTT.h"
 #include "Page_Style.css.h"
 #include "Page_Script.js.h"
+#include "Page_Favicon.h"
 
 // FIRMWARE_VERSION is set via build_flags in platformio.ini
 
@@ -223,6 +224,7 @@ void setup()
   server.on("/ping", []() { server.send(200, "text/plain", "pong"); });
   server.on("/style.css", []() { server.send(200, "text/css", PAGE_Style_css); });
   server.on("/script.js", []() { server.send(200, "text/javascript", PAGE_Script_js); });
+  server.on("/favicon.svg", []() { server.send(200, "image/svg+xml", PAGE_Favicon_svg); });
 
   server.on("/", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Index); });
   server.on("/status", []() { if (requireAuth()) send_status_json(); });
