@@ -441,7 +441,8 @@ void loop()
     time_history = millis();
     historyIndoor[historyHead] = Temp_Avg;
     historyOutdoor[historyHead] = weatherValid ? outdoorTemp : NAN;
-    historyTime[historyHead] = time(nullptr);
+    time_t now = time(nullptr);
+    historyTime[historyHead] = (now > 100000) ? now : 0;
     historyHead = (historyHead + 1) % HISTORY_SIZE;
     if (historyCount < HISTORY_SIZE) historyCount++;
   }
@@ -746,13 +747,39 @@ void send_history_json()
       json += String(historyOutdoor[idx], 1);
   }
   json += "],\"times\":[";
-  for (uint16_t i = 0; i < historyCount; i++)
+  // Find most recent valid timestamp to anchor calculations
+  uint32_t anchorTime = 0;
+  int16_t anchorIdx = -1;
+  for (int16_t i = historyCount - 1; i >= 0; i--)
   {
     uint16_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
-    if (i > 0) json += ",";
     if (historyTime[idx] > 100000)
     {
-      struct tm *ti = localtime((time_t*)&historyTime[idx]);
+      anchorTime = historyTime[idx];
+      anchorIdx = i;
+      break;
+    }
+  }
+  for (uint16_t i = 0; i < historyCount; i++)
+  {
+    if (i > 0) json += ",";
+    uint32_t t = 0;
+    if (anchorIdx >= 0)
+    {
+      // Calculate time based on position relative to anchor (5 min intervals)
+      int16_t offset = i - anchorIdx;
+      t = anchorTime + (offset * 300);
+    }
+    else
+    {
+      // No valid anchor, try stored time
+      uint16_t idx = (historyHead - historyCount + i + HISTORY_SIZE) % HISTORY_SIZE;
+      t = historyTime[idx];
+    }
+    if (t > 100000)
+    {
+      time_t tt = t;
+      struct tm *ti = localtime(&tt);
       char buf[6];
       sprintf(buf, "%02d:%02d", ti->tm_hour, ti->tm_min);
       json += "\"" + String(buf) + "\"";
