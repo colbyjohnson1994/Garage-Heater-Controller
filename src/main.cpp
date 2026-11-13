@@ -549,13 +549,37 @@ void loop()
     }
   }
 
-  if (config.RelayState && !runtimeWasOn)
+  // Accumulate runtime continuously while heater is on
+  if (config.RelayState)
   {
-    runtimeLastOn = millis();
-    runtimeWasOn = true;
+    if (!runtimeWasOn)
+    {
+      runtimeLastOn = millis();
+      runtimeWasOn = true;
+    }
+    else
+    {
+      uint32_t elapsed = (millis() - runtimeLastOn) / 1000;
+      if (elapsed >= 10) // accumulate every 10 seconds
+      {
+        runtimeToday += elapsed;
+        runtimeTotal += elapsed;
+        runtimeLastOn = millis();
+        if (now > 100000)
+        {
+          struct tm *ti = localtime(&now);
+          if (ti->tm_hour >= 0 && ti->tm_hour < 24)
+            runtimeHourly[ti->tm_hour] += elapsed;
+        }
+        // Persist total periodically
+        if (runtimeToday % 60 < 10)
+          config.runtimeTotal = runtimeTotal;
+      }
+    }
   }
-  else if (!config.RelayState && runtimeWasOn)
+  else if (runtimeWasOn)
   {
+    // Final accumulation when turning off
     uint32_t elapsed = (millis() - runtimeLastOn) / 1000;
     runtimeToday += elapsed;
     runtimeTotal += elapsed;
