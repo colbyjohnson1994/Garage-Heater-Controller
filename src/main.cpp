@@ -6,6 +6,7 @@
 
 #include "secrets.h"
 #include <math.h>
+#include <string.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
@@ -487,6 +488,20 @@ void loop()
   }
 
   // Runtime tracking
+  time_t now = time(nullptr);
+  if (now > 100000)
+  {
+    struct tm *ti = localtime(&now);
+    int today = ti->tm_yday;
+    if (runtimeDayStart != today)
+    {
+      // New day - reset today counters
+      runtimeToday = 0;
+      memset(runtimeHourly, 0, sizeof(runtimeHourly));
+      runtimeDayStart = today;
+    }
+  }
+
   if (config.RelayState && !runtimeWasOn)
   {
     runtimeLastOn = millis();
@@ -497,7 +512,6 @@ void loop()
     uint32_t elapsed = (millis() - runtimeLastOn) / 1000;
     runtimeToday += elapsed;
     runtimeTotal += elapsed;
-    time_t now = time(nullptr);
     if (now > 100000)
     {
       struct tm *ti = localtime(&now);
