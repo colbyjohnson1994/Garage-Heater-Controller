@@ -881,6 +881,16 @@ void send_status_json()
   json += "\"lat\":" + String(config.latitude, 4) + ",";
   json += "\"lon\":" + String(config.longitude, 4) + ",";
   json += "\"runtimeToday\":" + String(runtimeToday) + ",";
+  // Estimated remaining runtime when heater is on
+  int estMin = -1;
+  if (config.RelayState && tempRate > 0.01)
+  {
+    float offTemp = config.HeatSP + config.HeatHist;
+    float delta = offTemp - Temp_Avg;
+    if (delta > 0)
+      estMin = (int)(delta / tempRate);
+  }
+  json += "\"estMin\":" + String(estMin) + ",";
   json += "\"rate\":" + String(tempRate, 2);
   json += "}";
   server.send(200, "application/json", json);
