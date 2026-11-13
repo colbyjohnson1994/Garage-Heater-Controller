@@ -4,8 +4,12 @@ const char PAGE_Index[] PROGMEM = R"=====(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1e293b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Garage Heater</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.json">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -83,7 +87,12 @@ const char PAGE_Index[] PROGMEM = R"=====(
   </div>
 </div>
 <script src="/script.js"></script>
-<script>initDashboard();</script>
+<script>
+initDashboard();
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+</script>
 </body>
 </html>
 )=====";

@@ -28,6 +28,7 @@
 #include "Page_Style.css.h"
 #include "Page_Script.js.h"
 #include "Page_Favicon.h"
+#include "Page_PWA.h"
 
 // FIRMWARE_VERSION is set via build_flags in platformio.ini
 
@@ -225,6 +226,8 @@ void setup()
   server.on("/style.css", []() { server.send(200, "text/css", PAGE_Style_css); });
   server.on("/script.js", []() { server.send(200, "text/javascript", PAGE_Script_js); });
   server.on("/favicon.svg", []() { server.send(200, "image/svg+xml", PAGE_Favicon_svg); });
+  server.on("/manifest.json", []() { server.send(200, "application/manifest+json", PAGE_Manifest_json); });
+  server.on("/sw.js", []() { server.send(200, "application/javascript", PAGE_ServiceWorker_js); });
 
   server.on("/", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Index); });
   server.on("/status", []() { if (requireAuth()) send_status_json(); });
