@@ -29,6 +29,7 @@ const char PAGE_Index[] PROGMEM = R"=====(
     <div style="text-align:center; color:#94a3b8; font-size:0.9rem;">INDOOR TEMPERATURE</div>
     <div class="temp-big"><span id="temp">--</span><span class="temp-unit">°F</span></div>
     <div class="rate" id="rate">-- °/min</div>
+    <div class="rate" id="estRuntime" style="font-size:0.95rem; margin-top:4px;"></div>
     <div style="text-align:center;">
       <span id="relayStatus" class="status-badge status-off">IDLE</span>
     </div>
