@@ -34,6 +34,18 @@ function loadStatus() {
         rateEl.textContent = sign + r.toFixed(2) + ' °/min';
         rateEl.className = 'rate ' + (r > 0.05 ? 'up' : r < -0.05 ? 'down' : '');
       }
+      const estEl = document.getElementById('estRuntime');
+      if (estEl) {
+        if (data.relay && data.estMin !== undefined && data.estMin >= 0) {
+          if (data.estMin < 60)
+            estEl.textContent = '~' + data.estMin + ' min remaining';
+          else
+            estEl.textContent = '~' + (data.estMin / 60).toFixed(1) + ' hr remaining';
+          estEl.style.color = '#22c55e';
+        } else {
+          estEl.textContent = '';
+        }
+      }
       const outdoorEl = document.getElementById('outdoorTemp');
       if (outdoorEl && data.outdoor !== null) {
         outdoorEl.textContent = data.outdoor.toFixed(1) + '°F';
