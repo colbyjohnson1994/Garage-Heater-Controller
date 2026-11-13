@@ -82,7 +82,11 @@ float rateSamples[RATE_SAMPLES];
 uint8_t rateIndex = 0;
 uint8_t rateCount = 0;
 uint32_t time_rate = 0;
-float tempRate = 0; // degrees per minute
+float tempRate = 0; // degrees per minute (short-term)
+float avgHeatRate = 0.5; // long-term average °F/min when heating
+uint16_t heatRateSamples = 0;
+uint32_t time_avgRate = 0;
+float lastAvgTemp = 0;
 
 void serialLogPrint(const String& s)
 {
@@ -159,6 +163,16 @@ void setup()
     Serial.println("Runtime total reset (was uninitialized)");
   }
   runtimeTotal = config.runtimeTotal;
+
+  // Load long-term heating rate from EEPROM
+  float savedRate = EEPROMReadfloat(208);
+  uint16_t savedSamples = EEPROM.read(212) | (EEPROM.read(213) << 8);
+  if (savedRate > 0.05 && savedRate < 5.0 && savedSamples > 0 && savedSamples < 200)
+  {
+    avgHeatRate = savedRate;
+    heatRateSamples = savedSamples;
+    Serial.printf("Loaded avg heat rate: %.2f °F/min (%u samples)\n", avgHeatRate, heatRateSamples);
+  }
 
   // Force hardcoded WiFi so OTA works even if EEPROM SSID is empty
   if (String(WIFI_SSID) != "YOUR_SSID_HERE")
@@ -437,6 +451,39 @@ void loop()
       float minutes = (rateCount - 1) * 10.0 / 60.0;
       tempRate = (newest - oldest) / minutes;
     }
+  }
+
+  // Long-term heating rate averaging (every 5 minutes while heating)
+  if (config.RelayState && (millis() - time_avgRate) > 300000)
+  {
+    time_avgRate = millis();
+    if (lastAvgTemp > 0)
+    {
+      float delta = Temp_Avg - lastAvgTemp;
+      float rate = delta / 5.0; // °F per minute over 5 minutes
+      if (rate > 0.05 && rate < 5.0) // sanity check
+      {
+        if (heatRateSamples == 0)
+          avgHeatRate = rate;
+        else
+          avgHeatRate = (avgHeatRate * heatRateSamples + rate) / (heatRateSamples + 1);
+        if (heatRateSamples < 100) heatRateSamples++;
+        // Persist every 5 samples
+        if (heatRateSamples % 5 == 0)
+        {
+          EEPROMWritefloat(208, avgHeatRate);
+          EEPROM.write(212, heatRateSamples & 0xFF);
+          EEPROM.write(213, (heatRateSamples >> 8) & 0xFF);
+          EEPROM.commit();
+        }
+      }
+    }
+    lastAvgTemp = Temp_Avg;
+  }
+  else if (!config.RelayState)
+  {
+    lastAvgTemp = 0;
+    time_avgRate = millis();
   }
 
   // History sampling (every 5 minutes)
@@ -882,16 +929,20 @@ void send_status_json()
   json += "\"lon\":" + String(config.longitude, 4) + ",";
   json += "\"runtimeToday\":" + String(runtimeToday) + ",";
   // Estimated remaining runtime when heater is on
+  // Prefer long-term average if we have enough samples
   int estMin = -1;
-  if (config.RelayState && tempRate > 0.01)
+  float rateForEst = (heatRateSamples >= 3) ? avgHeatRate : tempRate;
+  if (config.RelayState && rateForEst > 0.01)
   {
     float offTemp = config.HeatSP + config.HeatHist;
     float delta = offTemp - Temp_Avg;
     if (delta > 0)
-      estMin = (int)(delta / tempRate);
+      estMin = (int)(delta / rateForEst);
   }
   json += "\"estMin\":" + String(estMin) + ",";
-  json += "\"rate\":" + String(tempRate, 2);
+  json += "\"rate\":" + String(tempRate, 2) + ",";
+  json += "\"avgRate\":" + String(avgHeatRate, 2) + ",";
+  json += "\"rateSamples\":" + String(heatRateSamples);
   json += "}";
   server.send(200, "application/json", json);
 }
