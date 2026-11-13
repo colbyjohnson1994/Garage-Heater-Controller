@@ -31,7 +31,10 @@ function loadStatus() {
       if (rateEl && data.rate !== undefined) {
         const r = data.rate;
         const sign = r > 0 ? '+' : '';
-        rateEl.textContent = sign + r.toFixed(2) + ' °/min';
+        let txt = sign + r.toFixed(2) + ' °/min';
+        if (data.avgRate && data.rateSamples >= 3)
+          txt += ' (avg ' + data.avgRate.toFixed(2) + ')';
+        rateEl.textContent = txt;
         rateEl.className = 'rate ' + (r > 0.05 ? 'up' : r < -0.05 ? 'down' : '');
       }
       const estEl = document.getElementById('estRuntime');
