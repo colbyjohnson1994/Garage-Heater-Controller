@@ -103,6 +103,9 @@ struct strConfig {
 	bool mqttEnabled;
 	// Runtime
 	uint32_t runtimeTotal;
+	// Cost tracking
+	float heaterKW;      // heater power in kilowatts
+	float pricePerKWh;   // electricity price per kWh
 } config;
 
 void WriteConfig();
