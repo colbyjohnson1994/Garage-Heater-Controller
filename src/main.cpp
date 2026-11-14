@@ -151,6 +151,8 @@ void setup()
     config.mqttTopic = "garage/heater";
     config.mqttEnabled = false;
     config.runtimeTotal = 0;
+    config.heaterKW = 5.0;
+    config.pricePerKWh = 0.12;
     WriteConfig();
     Serial.println("Default config applied");
     delay(1000);
@@ -260,6 +262,13 @@ void setup()
   server.on("/history.json", []() { if (requireAuth()) send_history_json(); });
   server.on("/runtime.html", []() { if (requireAuth()) server.send(200, "text/html", PAGE_Runtime); });
   server.on("/runtime.json", []() { if (requireAuth()) send_runtime_json(); });
+  server.on("/cost", []() {
+    if (!requireAuth()) return;
+    if (server.hasArg("kw")) config.heaterKW = server.arg("kw").toFloat();
+    if (server.hasArg("price")) config.pricePerKWh = server.arg("price").toFloat();
+    WriteConfig();
+    server.send(200, "application/json", "{\"ok\":true}");
+  });
   server.on("/forecast.json", []() { if (requireAuth()) {
     String j = "{\"temps\":[";
     for (int i = 0; i < FORECAST_HOURS; i++) {
@@ -748,8 +757,17 @@ void fetchWeather()
 
 void send_runtime_json()
 {
+  float todayKWh = (runtimeToday / 3600.0) * config.heaterKW;
+  float totalKWh = (runtimeTotal / 3600.0) * config.heaterKW;
+  float todayCost = todayKWh * config.pricePerKWh;
+  float totalCost = totalKWh * config.pricePerKWh;
+
   String json = "{\"today\":" + String(runtimeToday);
   json += ",\"total\":" + String(runtimeTotal);
+  json += ",\"todayCost\":" + String(todayCost, 2);
+  json += ",\"totalCost\":" + String(totalCost, 2);
+  json += ",\"heaterKW\":" + String(config.heaterKW, 1);
+  json += ",\"priceKWh\":" + String(config.pricePerKWh, 2);
   json += ",\"hourly\":[";
   for (int i = 0; i < 24; i++)
   {
@@ -1034,6 +1052,8 @@ void WriteConfig()
   WriteStringToEEPROM(460, config.zipCode);
   WriteStringToEEPROM(480, config.locationName);
   EEPROMWritelong(200, config.runtimeTotal);
+  EEPROMWritefloat(214, config.heaterKW);
+  EEPROMWritefloat(218, config.pricePerKWh);
   EEPROM.write(204, config.mqttEnabled);
   EEPROM.write(205, config.mqttPort & 0xFF);
   EEPROM.write(206, (config.mqttPort >> 8) & 0xFF);
@@ -1089,6 +1109,10 @@ boolean ReadConfig()
     config.zipCode = ReadStringFromEEPROM(460);
     config.locationName = ReadStringFromEEPROM(480);
     config.runtimeTotal = EEPROMReadlong(200);
+    config.heaterKW = EEPROMReadfloat(214);
+    config.pricePerKWh = EEPROMReadfloat(218);
+    if (config.heaterKW < 0.1 || config.heaterKW > 50) config.heaterKW = 5.0;
+    if (config.pricePerKWh < 0 || config.pricePerKWh > 5) config.pricePerKWh = 0.12;
     config.mqttEnabled = EEPROM.read(204);
     config.mqttPort = EEPROM.read(205) | (EEPROM.read(206) << 8);
     if (config.mqttPort == 0 || config.mqttPort == 0xFFFF) config.mqttPort = 1883;
