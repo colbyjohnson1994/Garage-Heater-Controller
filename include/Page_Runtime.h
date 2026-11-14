@@ -26,11 +26,13 @@ const char PAGE_Runtime[] PROGMEM = R"=====(
         <div style="color:#94a3b8; font-size:0.85rem;">TODAY</div>
         <div style="font-size:1.8rem; font-weight:600;" id="todayHours">--</div>
         <div style="color:#94a3b8; font-size:0.8rem;">hours</div>
+        <div style="font-size:1.1rem; color:#22c55e; margin-top:4px;" id="todayCost">--</div>
       </div>
       <div>
         <div style="color:#94a3b8; font-size:0.85rem;">LIFETIME</div>
         <div style="font-size:1.8rem; font-weight:600;" id="totalHours">--</div>
         <div style="color:#94a3b8; font-size:0.8rem;">hours</div>
+        <div style="font-size:1.1rem; color:#22c55e; margin-top:4px;" id="totalCost">--</div>
       </div>
     </div>
   </div>
@@ -39,14 +41,41 @@ const char PAGE_Runtime[] PROGMEM = R"=====(
     <div style="color:#94a3b8; font-size:0.9rem; margin-bottom:8px;">TODAY BY HOUR</div>
     <canvas id="runtimeChart" width="640" height="160" style="width:100%; height:160px; background:#0f172a; border-radius:8px;"></canvas>
   </div>
+
+  <div class="card">
+    <div style="color:#94a3b8; font-size:0.9rem; margin-bottom:12px;">COST SETTINGS</div>
+    <form id="costForm" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+      <div>
+        <label>Heater Power (kW)</label>
+        <input type="number" id="heaterKW" step="0.1" min="0.1" max="50" value="5">
+      </div>
+      <div>
+        <label>Price per kWh ($)</label>
+        <input type="number" id="priceKWh" step="0.01" min="0" max="5" value="0.12">
+      </div>
+      <button type="button" class="btn" onclick="saveCost()">Save</button>
+    </form>
+  </div>
 </div>
 <script>
 function loadRuntime() {
   fetch('/runtime.json').then(r => r.json()).then(d => {
     document.getElementById('todayHours').textContent = (d.today / 3600).toFixed(1);
     document.getElementById('totalHours').textContent = (d.total / 3600).toFixed(1);
+    if (d.todayCost !== undefined)
+      document.getElementById('todayCost').textContent = '$' + d.todayCost.toFixed(2);
+    if (d.totalCost !== undefined)
+      document.getElementById('totalCost').textContent = '$' + d.totalCost.toFixed(2);
+    if (d.heaterKW) document.getElementById('heaterKW').value = d.heaterKW;
+    if (d.priceKWh) document.getElementById('priceKWh').value = d.priceKWh;
     drawRuntime(d.hourly || []);
   }).catch(()=>{});
+}
+
+function saveCost() {
+  const kw = document.getElementById('heaterKW').value;
+  const price = document.getElementById('priceKWh').value;
+  fetch('/cost?kw=' + kw + '&price=' + price).then(() => loadRuntime());
 }
 
 function drawRuntime(hourly) {
